@@ -11,6 +11,10 @@ import EquityCurveChart from './components/Charts/EquityCurveChart';
 import MonthlyPerformanceChart from './components/Charts/MonthlyPerformanceChart';
 import RiskDistributionChart from './components/Charts/RiskDistributionChart';
 import TradeJournal from './components/TradeJournal/TradeJournal';
+import AdvancedAnalytics from './components/Analytics/AdvancedAnalytics';
+import GoalTracker from './components/Goals/GoalTracker';
+import NotificationSystem from './components/Notifications/NotificationSystem';
+import MobileOptimizations from './components/Mobile/MobileOptimizations';
 import { StorageManager } from './utils/storage';
 import { AnalyticsEngine } from './utils/analytics';
 import { ExportManager } from './utils/exportUtils';
@@ -20,7 +24,7 @@ function AppContent() {
   const [currentPhase, setCurrentPhase] = useState(0);
   const [phases, setPhases] = useState<Phase[]>([]);
   const [historicalPhases, setHistoricalPhases] = useState<Phase[]>([]);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'phases' | 'analytics' | 'journal'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'phases' | 'analytics' | 'journal' | 'goals'>('dashboard');
   const [expandedPhases, setExpandedPhases] = useState<Set<number>>(new Set());
   const [settings, setSettings] = useState<AppSettings>({
     darkMode: false,
@@ -80,6 +84,23 @@ function AppContent() {
       return () => clearInterval(interval);
     }
   }, [settings.autoBackup, currentPhase, phases, historicalPhases, settings, expandedPhases]);
+
+  // Persist expanded phases state across tab changes
+  useEffect(() => {
+    const savedExpandedPhases = localStorage.getItem('expandedPhases');
+    if (savedExpandedPhases) {
+      try {
+        const expandedArray = JSON.parse(savedExpandedPhases);
+        setExpandedPhases(new Set(expandedArray));
+      } catch (error) {
+        console.error('Error loading expanded phases:', error);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('expandedPhases', JSON.stringify(Array.from(expandedPhases)));
+  }, [expandedPhases]);
 
   const handleStartNewPhase = (initialCapital: number, levelsPerPhase: number, goalTarget?: number) => {
     const newPhaseNumber = currentPhase + 1;
@@ -208,130 +229,129 @@ function AppContent() {
   const tabs = [
     { id: 'dashboard' as const, label: 'Dashboard', count: allPhases.length },
     { id: 'phases' as const, label: 'Active Phases', count: phases.length },
-    { id: 'analytics' as const, label: 'Analytics', count: performanceMetrics.totalTrades },
+    { id: 'analytics' as const, label: 'Advanced Analytics', count: performanceMetrics.totalTrades },
     { id: 'journal' as const, label: 'Trade Journal', count: performanceMetrics.totalTrades },
+    { id: 'goals' as const, label: 'Goals', count: 0 },
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col transition-colors">
-      <Header 
-        settings={settings}
-        onUpdateSettings={setSettings}
-        onExportData={handleSaveToFile}
-        onImportData={handleLoadFromFile}
-      />
-      
-      <main className="container mx-auto px-4 py-6 flex-grow">
-        <InputSection 
-          onStartNewPhase={handleStartNewPhase} 
-          onSaveToFile={handleSaveToFile}
-          onLoadFromFile={handleLoadFromFile}
-          onExportPDF={handleExportPDF}
-          onExportCSV={handleExportCSV}
+    <MobileOptimizations>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col transition-colors">
+        <Header 
           settings={settings}
+          onUpdateSettings={setSettings}
+          onExportData={handleSaveToFile}
+          onImportData={handleLoadFromFile}
         />
         
-        {/* Navigation Tabs */}
-        <div className="mb-6">
-          <nav className="flex space-x-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                  activeTab === tab.id
-                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                }`}
-              >
-                {tab.label}
-                {tab.count > 0 && (
-                  <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${
+        <main className="container mx-auto px-4 py-6 flex-grow">
+          <InputSection 
+            onStartNewPhase={handleStartNewPhase} 
+            onSaveToFile={handleSaveToFile}
+            onLoadFromFile={handleLoadFromFile}
+            onExportPDF={handleExportPDF}
+            onExportCSV={handleExportCSV}
+            settings={settings}
+          />
+          
+          {/* Navigation Tabs */}
+          <div className="mb-6">
+            <nav className="flex space-x-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg overflow-x-auto">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex-shrink-0 flex items-center justify-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                     activeTab === tab.id
-                      ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
-                      : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                  }`}>
-                    {tab.count}
-                  </span>
-                )}
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        <div id="dashboard-content">
-          {/* Dashboard Tab */}
-          {activeTab === 'dashboard' && (
-            <div className="space-y-6">
-              {performanceMetrics.totalTrades > 0 && (
-                <PerformanceDashboard metrics={performanceMetrics} />
-              )}
-              
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <EquityCurveChart data={equityCurve} />
-                <MonthlyPerformanceChart data={monthlyPerformance} />
-              </div>
-              
-              <RiskDistributionChart data={riskDistribution} />
-              
-              {historicalPhases.length > 0 && (
-                <HistoricalPhases phases={historicalPhases} />
-              )}
-            </div>
-          )}
-
-          {/* Active Phases Tab */}
-          {activeTab === 'phases' && (
-            <div className="space-y-6">
-              {phases.map(phase => (
-                <PhaseContainer 
-                  key={phase.phaseNumber} 
-                  phase={phase} 
-                  updatePhase={updatePhase}
-                  onDeletePhase={handleDeletePhase}
-                  riskWarningThreshold={settings.riskWarningThreshold}
-                  expandedPhases={expandedPhases}
-                  onToggleExpanded={handleTogglePhaseExpanded}
-                />
+                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                >
+                  {tab.label}
+                  {tab.count > 0 && (
+                    <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${
+                      activeTab === tab.id
+                        ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                    }`}>
+                      {tab.count}
+                    </span>
+                  )}
+                </button>
               ))}
-              
-              {phases.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400">
-                  <BarChart3 size={48} className="mb-4 opacity-50" />
-                  <p className="text-xl font-medium">No active phases</p>
-                  <p className="text-sm">Enter your initial capital and levels to start tracking your progress</p>
+            </nav>
+          </div>
+
+          <div id="dashboard-content">
+            {/* Dashboard Tab */}
+            {activeTab === 'dashboard' && (
+              <div className="space-y-6">
+                {performanceMetrics.totalTrades > 0 && (
+                  <PerformanceDashboard metrics={performanceMetrics} />
+                )}
+                
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 grid-responsive">
+                  <EquityCurveChart data={equityCurve} />
+                  <MonthlyPerformanceChart data={monthlyPerformance} />
                 </div>
-              )}
-            </div>
-          )}
-
-          {/* Analytics Tab */}
-          {activeTab === 'analytics' && (
-            <div className="space-y-6">
-              <PerformanceDashboard metrics={performanceMetrics} />
-              
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <EquityCurveChart data={equityCurve} />
-                <MonthlyPerformanceChart data={monthlyPerformance} />
+                
+                <RiskDistributionChart data={riskDistribution} />
+                
+                {historicalPhases.length > 0 && (
+                  <HistoricalPhases phases={historicalPhases} />
+                )}
               </div>
-              
-              <RiskDistributionChart data={riskDistribution} />
-            </div>
-          )}
+            )}
 
-          {/* Trade Journal Tab */}
-          {activeTab === 'journal' && (
-            <TradeJournal phases={allPhases} />
-          )}
-        </div>
-      </main>
-      
-      <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-4 transition-colors">
-        <div className="container mx-auto px-4 text-center text-sm text-gray-500 dark:text-gray-400">
-          &copy; {new Date().getFullYear()} Trading Challenge Dashboard - Enhanced Edition
-        </div>
-      </footer>
-    </div>
+            {/* Active Phases Tab */}
+            {activeTab === 'phases' && (
+              <div className="space-y-6">
+                {phases.map(phase => (
+                  <PhaseContainer 
+                    key={phase.phaseNumber} 
+                    phase={phase} 
+                    updatePhase={updatePhase}
+                    onDeletePhase={handleDeletePhase}
+                    riskWarningThreshold={settings.riskWarningThreshold}
+                    expandedPhases={expandedPhases}
+                    onToggleExpanded={handleTogglePhaseExpanded}
+                  />
+                ))}
+                
+                {phases.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400">
+                    <BarChart3 size={48} className="mb-4 opacity-50" />
+                    <p className="text-xl font-medium">No active phases</p>
+                    <p className="text-sm">Enter your initial capital and levels to start tracking your progress</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Advanced Analytics Tab */}
+            {activeTab === 'analytics' && (
+              <AdvancedAnalytics phases={allPhases} />
+            )}
+
+            {/* Trade Journal Tab */}
+            {activeTab === 'journal' && (
+              <TradeJournal phases={allPhases} />
+            )}
+
+            {/* Goals Tab */}
+            {activeTab === 'goals' && (
+              <GoalTracker phases={allPhases} />
+            )}
+          </div>
+        </main>
+        
+        <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-4 transition-colors">
+          <div className="container mx-auto px-4 text-center text-sm text-gray-500 dark:text-gray-400">
+            &copy; {new Date().getFullYear()} Trading Challenge Dashboard - Professional Edition
+          </div>
+        </footer>
+      </div>
+    </MobileOptimizations>
   );
 }
 

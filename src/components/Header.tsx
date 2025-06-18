@@ -3,7 +3,8 @@ import { BarChart3, Keyboard } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import SettingsPanel from './Settings/SettingsPanel';
 import RiskCalculator from './RiskCalculator/RiskCalculator';
-import { AppSettings } from '../types/Phase';
+import NotificationSystem from './Notifications/NotificationSystem';
+import { AppSettings, Phase } from '../types/Phase';
 
 interface HeaderProps {
   settings: AppSettings;
@@ -48,6 +49,11 @@ const Header: React.FC<HeaderProps> = ({
             <div>Ctrl+D: Dark Mode</div>
             <div>Ctrl+E: Export</div>
           </div>
+          
+          <NotificationSystem 
+            phases={[]} 
+            settings={settings}
+          />
           
           <RiskCalculator />
           

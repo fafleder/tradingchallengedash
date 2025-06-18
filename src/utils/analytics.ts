@@ -44,10 +44,15 @@ export class AnalyticsEngine {
     const totalRisked = allTrades.reduce((sum, trade) => sum + (trade.riskedAmount || 0), 0);
     const returnOnRisk = totalRisked > 0 ? (totalProfitLoss / totalRisked) * 100 : 0;
     
-    // Calculate max drawdown
+    // Calculate max drawdown with improved algorithm
     let maxDrawdown = 0;
     let peak = 0;
     let runningPL = 0;
+    
+    // Get initial capital from first phase
+    const initialCapital = phases.length > 0 ? phases[0].initialCapital : 0;
+    peak = initialCapital;
+    runningPL = initialCapital;
     
     for (const trade of allTrades) {
       runningPL += trade.pl;
@@ -113,8 +118,17 @@ export class AnalyticsEngine {
       phase.levels.filter(level => level.completed && level.date)
     ).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    let runningEquity = 0;
+    // Start with initial capital from first phase
+    let runningEquity = phases.length > 0 ? phases[0].initialCapital : 0;
     const equityCurve: Array<{ date: string; equity: number; }> = [];
+
+    // Add starting point
+    if (allTrades.length > 0) {
+      equityCurve.push({
+        date: allTrades[0].date,
+        equity: runningEquity,
+      });
+    }
 
     allTrades.forEach(trade => {
       runningEquity += trade.pl;
@@ -150,5 +164,31 @@ export class AnalyticsEngine {
     });
 
     return Object.entries(riskBuckets).map(([risk, count]) => ({ risk, count }));
+  }
+
+  // New advanced analytics methods
+  static getDrawdownPercentage(phases: Phase[]): number {
+    const metrics = this.calculatePerformanceMetrics(phases);
+    const initialCapital = phases.length > 0 ? phases[0].initialCapital : 0;
+    return initialCapital > 0 ? (metrics.maxDrawdown / initialCapital) * 100 : 0;
+  }
+
+  static getConsistencyScore(phases: Phase[]): number {
+    const allTrades = phases.flatMap(phase => 
+      phase.levels.filter(level => level.completed)
+    );
+
+    if (allTrades.length < 10) return 0;
+
+    // Calculate standard deviation of returns
+    const returns = allTrades.map(trade => trade.pl);
+    const mean = returns.reduce((sum, ret) => sum + ret, 0) / returns.length;
+    const variance = returns.reduce((sum, ret) => sum + Math.pow(ret - mean, 2), 0) / returns.length;
+    const stdDev = Math.sqrt(variance);
+
+    // Lower standard deviation = higher consistency
+    // Normalize to 0-100 scale
+    const consistencyScore = Math.max(0, 100 - (stdDev / Math.abs(mean)) * 100);
+    return isNaN(consistencyScore) ? 0 : Math.min(100, consistencyScore);
   }
 }
