@@ -13,95 +13,13 @@ const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'
 
 const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({ phases }) => {
   const { darkMode } = useTheme();
-  const [activeTab, setActiveTab] = useState<'time' | 'strategy' | 'patterns' | 'goals'>('time');
+  const [activeTab, setActiveTab] = useState<'patterns' | 'time' | 'strategy' | 'goals'>('patterns');
 
   const allTrades = phases.flatMap(phase => 
     phase.levels.filter(level => level.completed && level.date)
   );
 
-  // Time-based analysis
-  const getTimeAnalysis = () => {
-    const dayOfWeekData: { [key: string]: { trades: number; profit: number; winRate: number } } = {
-      'Monday': { trades: 0, profit: 0, winRate: 0 },
-      'Tuesday': { trades: 0, profit: 0, winRate: 0 },
-      'Wednesday': { trades: 0, profit: 0, winRate: 0 },
-      'Thursday': { trades: 0, profit: 0, winRate: 0 },
-      'Friday': { trades: 0, profit: 0, winRate: 0 },
-      'Saturday': { trades: 0, profit: 0, winRate: 0 },
-      'Sunday': { trades: 0, profit: 0, winRate: 0 },
-    };
-
-    const hourlyData: { [key: number]: { trades: number; profit: number; wins: number } } = {};
-
-    allTrades.forEach(trade => {
-      const date = new Date(trade.date);
-      const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
-      const hour = date.getHours();
-
-      // Day of week analysis
-      dayOfWeekData[dayName].trades++;
-      dayOfWeekData[dayName].profit += trade.pl;
-
-      // Hourly analysis (if entry time is available)
-      if (trade.entryTime) {
-        const entryHour = parseInt(trade.entryTime.split(':')[0]);
-        if (!hourlyData[entryHour]) {
-          hourlyData[entryHour] = { trades: 0, profit: 0, wins: 0 };
-        }
-        hourlyData[entryHour].trades++;
-        hourlyData[entryHour].profit += trade.pl;
-        if (trade.pl > 0) hourlyData[entryHour].wins++;
-      }
-    });
-
-    // Calculate win rates
-    Object.keys(dayOfWeekData).forEach(day => {
-      const wins = allTrades.filter(t => {
-        const dayName = new Date(t.date).toLocaleDateString('en-US', { weekday: 'long' });
-        return dayName === day && t.pl > 0;
-      }).length;
-      dayOfWeekData[day].winRate = dayOfWeekData[day].trades > 0 ? (wins / dayOfWeekData[day].trades) * 100 : 0;
-    });
-
-    return {
-      dayOfWeek: Object.entries(dayOfWeekData).map(([day, data]) => ({
-        day,
-        ...data
-      })),
-      hourly: Object.entries(hourlyData).map(([hour, data]) => ({
-        hour: parseInt(hour),
-        ...data,
-        winRate: data.trades > 0 ? (data.wins / data.trades) * 100 : 0
-      })).sort((a, b) => a.hour - b.hour)
-    };
-  };
-
-  // Strategy correlation analysis
-  const getStrategyAnalysis = () => {
-    const strategyData: { [key: string]: { trades: number; profit: number; wins: number; avgRisk: number } } = {};
-
-    allTrades.forEach(trade => {
-      const strategy = trade.strategy || 'Unknown';
-      if (!strategyData[strategy]) {
-        strategyData[strategy] = { trades: 0, profit: 0, wins: 0, avgRisk: 0 };
-      }
-      strategyData[strategy].trades++;
-      strategyData[strategy].profit += trade.pl;
-      strategyData[strategy].avgRisk += trade.riskPercent;
-      if (trade.pl > 0) strategyData[strategy].wins++;
-    });
-
-    return Object.entries(strategyData).map(([strategy, data]) => ({
-      strategy,
-      trades: data.trades,
-      profit: data.profit,
-      winRate: data.trades > 0 ? (data.wins / data.trades) * 100 : 0,
-      avgRisk: data.trades > 0 ? data.avgRisk / data.trades : 0,
-      profitPerTrade: data.trades > 0 ? data.profit / data.trades : 0
-    })).sort((a, b) => b.profit - a.profit);
-  };
-
-  // Pattern recognition
+  // Pattern recognition - moved to top
   const getPatternAnalysis = () => {
     const patterns = {
       consecutiveWins: 0,
@@ -144,6 +62,88 @@ const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({ phases }) => {
     return patterns;
   };
 
+  // Time-based analysis
+  const getTimeAnalysis = () => {
+    const dayOfWeekData: { [key: string]: { trades: number; profit: number; winRate: number } } = {
+      'Monday': { trades: 0, profit: 0, winRate: 0 },
+      'Tuesday': { trades: 0, profit: 0, winRate: 0 },
+      'Wednesday': { trades: 0, profit: 0, winRate: 0 },
+      'Thursday': { trades: 0, profit: 0, winRate: 0 },
+      'Friday': { trades: 0, profit: 0, winRate: 0 },
+      'Saturday': { trades: 0, profit: 0, winRate: 0 },
+      'Sunday': { trades: 0, profit: 0, winRate: 0 },
+    };
+
+    const hourlyData: { [key: number]: { trades: number; profit: number; wins: number } } = {};
+
+    allTrades.forEach(trade => {
+      const date = new Date(trade.date);
+      const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+
+      // Day of week analysis
+      dayOfWeekData[dayName].trades++;
+      dayOfWeekData[dayName].profit += trade.pl;
+
+      // Hourly analysis (if entry time is available)
+      if (trade.entryTime) {
+        const entryHour = parseInt(trade.entryTime.split(':')[0]);
+        if (!hourlyData[entryHour]) {
+          hourlyData[entryHour] = { trades: 0, profit: 0, wins: 0 };
+        }
+        hourlyData[entryHour].trades++;
+        hourlyData[entryHour].profit += trade.pl;
+        if (trade.pl > 0) hourlyData[entryHour].wins++;
+      }
+    });
+
+    // Calculate win rates
+    Object.keys(dayOfWeekData).forEach(day => {
+      const wins = allTrades.filter(t => {
+        const dayName = new Date(t.date).toLocaleDateString('en-US', { weekday: 'long' });
+        return dayName === day && t.pl > 0;
+      }).length;
+      dayOfWeekData[day].winRate = dayOfWeekData[day].trades > 0 ? (wins / dayOfWeekData[day].trades) * 100 : 0;
+    });
+
+    return {
+      dayOfWeek: Object.entries(dayOfWeekData).map(([day, data]) => ({
+        day: day.substring(0, 3), // Shortened for better display
+        fullDay: day,
+        ...data
+      })),
+      hourly: Object.entries(hourlyData).map(([hour, data]) => ({
+        hour: parseInt(hour),
+        ...data,
+        winRate: data.trades > 0 ? (data.wins / data.trades) * 100 : 0
+      })).sort((a, b) => a.hour - b.hour)
+    };
+  };
+
+  // Strategy correlation analysis
+  const getStrategyAnalysis = () => {
+    const strategyData: { [key: string]: { trades: number; profit: number; wins: number; avgRisk: number } } = {};
+
+    allTrades.forEach(trade => {
+      const strategy = trade.strategy || 'Unknown';
+      if (!strategyData[strategy]) {
+        strategyData[strategy] = { trades: 0, profit: 0, wins: 0, avgRisk: 0 };
+      }
+      strategyData[strategy].trades++;
+      strategyData[strategy].profit += trade.pl;
+      strategyData[strategy].avgRisk += trade.riskPercent;
+      if (trade.pl > 0) strategyData[strategy].wins++;
+    });
+
+    return Object.entries(strategyData).map(([strategy, data]) => ({
+      strategy,
+      trades: data.trades,
+      profit: data.profit,
+      winRate: data.trades > 0 ? (data.wins / data.trades) * 100 : 0,
+      avgRisk: data.trades > 0 ? data.avgRisk / data.trades : 0,
+      profitPerTrade: data.trades > 0 ? data.profit / data.trades : 0
+    })).sort((a, b) => b.profit - a.profit);
+  };
+
   // Goal tracking analysis
   const getGoalAnalysis = () => {
     const goals = phases.filter(p => p.goalTarget).map(phase => {
@@ -167,15 +167,15 @@ const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({ phases }) => {
     return goals;
   };
 
+  const patternAnalysis = getPatternAnalysis();
   const timeAnalysis = getTimeAnalysis();
   const strategyAnalysis = getStrategyAnalysis();
-  const patternAnalysis = getPatternAnalysis();
   const goalAnalysis = getGoalAnalysis();
 
   const tabs = [
+    { id: 'patterns' as const, label: 'Pattern Recognition', icon: TrendingUp },
     { id: 'time' as const, label: 'Time Analysis', icon: Clock },
     { id: 'strategy' as const, label: 'Strategy Performance', icon: Target },
-    { id: 'patterns' as const, label: 'Pattern Recognition', icon: TrendingUp },
     { id: 'goals' as const, label: 'Goal Tracking', icon: Award },
   ];
 
@@ -188,6 +188,62 @@ const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({ phases }) => {
       <h2 className={`text-xl font-bold mb-6 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
         Advanced Analytics
       </h2>
+
+      {/* Pattern Recognition - Always visible at top */}
+      <div className="mb-6">
+        <h3 className={`text-lg font-medium mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+          Pattern Recognition
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className={`p-4 rounded-lg border ${
+            darkMode ? 'bg-gray-700 border-gray-600' : 'bg-green-50 border-green-200'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-green-700'}`}>
+                  Best Win Streak
+                </p>
+                <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-green-900'}`}>
+                  {patternAnalysis.bestWinStreak}
+                </p>
+              </div>
+              <TrendingUp className={`h-8 w-8 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
+            </div>
+          </div>
+
+          <div className={`p-4 rounded-lg border ${
+            darkMode ? 'bg-gray-700 border-gray-600' : 'bg-red-50 border-red-200'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-red-700'}`}>
+                  Worst Loss Streak
+                </p>
+                <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-red-900'}`}>
+                  {patternAnalysis.worstLossStreak}
+                </p>
+              </div>
+              <AlertCircle className={`h-8 w-8 ${darkMode ? 'text-red-400' : 'text-red-600'}`} />
+            </div>
+          </div>
+
+          <div className={`p-4 rounded-lg border ${
+            darkMode ? 'bg-gray-700 border-gray-600' : 'bg-blue-50 border-blue-200'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-blue-700'}`}>
+                  Recovery Rate
+                </p>
+                <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-blue-900'}`}>
+                  {patternAnalysis.recoveryRate.toFixed(1)}%
+                </p>
+              </div>
+              <Target className={`h-8 w-8 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Tab Navigation */}
       <div className="mb-6">
@@ -224,7 +280,12 @@ const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({ phases }) => {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={timeAnalysis.dayOfWeek}>
                     <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#374151' : '#e5e7eb'} />
-                    <XAxis dataKey="day" stroke={darkMode ? '#9ca3af' : '#6b7280'} fontSize={12} />
+                    <XAxis 
+                      dataKey="day" 
+                      stroke={darkMode ? '#9ca3af' : '#6b7280'} 
+                      fontSize={12}
+                      tick={{ fontSize: 11 }}
+                    />
                     <YAxis stroke={darkMode ? '#9ca3af' : '#6b7280'} fontSize={12} />
                     <Tooltip 
                       contentStyle={{
@@ -238,6 +299,7 @@ const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({ phases }) => {
                         if (name === 'winRate') return [`${value.toFixed(1)}%`, 'Win Rate'];
                         return [value, name];
                       }}
+                      labelFormatter={(label) => timeAnalysis.dayOfWeek.find(d => d.day === label)?.fullDay || label}
                     />
                     <Bar dataKey="profit" fill="#10b981" />
                   </BarChart>
@@ -283,7 +345,7 @@ const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({ phases }) => {
                 <span className={`ml-2 font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                   {timeAnalysis.dayOfWeek.reduce((best, day) => 
                     day.winRate > best.winRate ? day : best
-                  ).day}
+                  ).fullDay}
                 </span>
               </div>
               <div>
@@ -291,7 +353,7 @@ const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({ phases }) => {
                 <span className={`ml-2 font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                   {timeAnalysis.dayOfWeek.reduce((best, day) => 
                     day.profit > best.profit ? day : best
-                  ).day}
+                  ).fullDay}
                 </span>
               </div>
             </div>
@@ -409,92 +471,6 @@ const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({ phases }) => {
                 </div>
               </div>
             ))}
-          </div>
-        </div>
-      )}
-
-      {/* Pattern Recognition Tab */}
-      {activeTab === 'patterns' && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div className={`p-4 rounded-lg border ${
-              darkMode ? 'bg-gray-700 border-gray-600' : 'bg-green-50 border-green-200'
-            }`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-green-700'}`}>
-                    Best Win Streak
-                  </p>
-                  <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-green-900'}`}>
-                    {patternAnalysis.bestWinStreak}
-                  </p>
-                </div>
-                <TrendingUp className={`h-8 w-8 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
-              </div>
-            </div>
-
-            <div className={`p-4 rounded-lg border ${
-              darkMode ? 'bg-gray-700 border-gray-600' : 'bg-red-50 border-red-200'
-            }`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-red-700'}`}>
-                    Worst Loss Streak
-                  </p>
-                  <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-red-900'}`}>
-                    {patternAnalysis.worstLossStreak}
-                  </p>
-                </div>
-                <AlertCircle className={`h-8 w-8 ${darkMode ? 'text-red-400' : 'text-red-600'}`} />
-              </div>
-            </div>
-
-            <div className={`p-4 rounded-lg border ${
-              darkMode ? 'bg-gray-700 border-gray-600' : 'bg-blue-50 border-blue-200'
-            }`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-blue-700'}`}>
-                    Recovery Rate
-                  </p>
-                  <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-blue-900'}`}>
-                    {patternAnalysis.recoveryRate.toFixed(1)}%
-                  </p>
-                </div>
-                <Target className={`h-8 w-8 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-              </div>
-            </div>
-          </div>
-
-          <div className={`p-4 rounded-lg border ${
-            darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'
-          }`}>
-            <h4 className={`font-medium mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              Pattern Insights
-            </h4>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-start">
-                <div className="w-2 h-2 bg-green-500 rounded-full mt-2 mr-3 flex-shrink-0"></div>
-                <p className={darkMode ? 'text-gray-300' : 'text-gray-700'}>
-                  Your best winning streak was {patternAnalysis.bestWinStreak} consecutive trades. 
-                  This shows your ability to maintain discipline during profitable periods.
-                </p>
-              </div>
-              <div className="flex items-start">
-                <div className="w-2 h-2 bg-red-500 rounded-full mt-2 mr-3 flex-shrink-0"></div>
-                <p className={darkMode ? 'text-gray-300' : 'text-gray-700'}>
-                  Your worst losing streak was {patternAnalysis.worstLossStreak} consecutive trades. 
-                  Consider reviewing your risk management during these periods.
-                </p>
-              </div>
-              <div className="flex items-start">
-                <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 mr-3 flex-shrink-0"></div>
-                <p className={darkMode ? 'text-gray-300' : 'text-gray-700'}>
-                  Your recovery rate is {patternAnalysis.recoveryRate.toFixed(1)}%, meaning you bounce back 
-                  from losses {patternAnalysis.recoveryRate > 50 ? 'more often than not' : 'less than half the time'}.
-                </p>
-              </div>
-            </div>
           </div>
         </div>
       )}

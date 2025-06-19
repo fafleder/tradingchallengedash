@@ -5,6 +5,8 @@ import { RiskManager } from '../utils/riskManager';
 import { useTheme } from '../contexts/ThemeContext';
 import PhaseHeader from './PhaseHeader';
 import TradeTable from './TradeTable';
+import GoalTracker from './Goals/GoalTracker';
+import RiskWarningsPanel from './RiskWarnings/RiskWarningsPanel';
 
 interface PhaseContainerProps {
   phase: Phase;
@@ -25,6 +27,7 @@ const PhaseContainer: React.FC<PhaseContainerProps> = ({
 }) => {
   const { darkMode } = useTheme();
   const [showRiskWarnings, setShowRiskWarnings] = useState(false);
+  const [phaseGoals, setPhaseGoals] = useState<any[]>([]);
   const expanded = expandedPhases.has(phase.phaseNumber);
   
   // Calculate total ending balance 
@@ -117,12 +120,6 @@ const PhaseContainer: React.FC<PhaseContainerProps> = ({
   // Check for risk warnings
   const riskWarnings = RiskManager.checkPhaseRiskWarnings(phase, riskWarningThreshold);
   
-  useEffect(() => {
-    if (riskWarnings.length > 0 && !showRiskWarnings) {
-      setShowRiskWarnings(true);
-    }
-  }, [riskWarnings.length]);
-  
   // Helper to handle level updates
   const handleLevelUpdate = (levelIndex: number, updates: Partial<typeof phase.levels[0]>) => {
     const updatedLevels = [...phase.levels];
@@ -153,6 +150,30 @@ const PhaseContainer: React.FC<PhaseContainerProps> = ({
       levels: updatedLevels
     });
   };
+
+  // Delete level
+  const handleDeleteLevel = (levelIndex: number) => {
+    if (phase.levels.length <= 1) {
+      alert('Cannot delete the last level in a phase.');
+      return;
+    }
+    
+    const confirmDelete = window.confirm('Are you sure you want to delete this level?');
+    if (!confirmDelete) return;
+    
+    const updatedLevels = phase.levels.filter((_, index) => index !== levelIndex);
+    // Renumber the levels
+    const renumberedLevels = updatedLevels.map((level, index) => ({
+      ...level,
+      levelNumber: index + 1
+    }));
+    
+    updatePhase({
+      ...phase,
+      levels: renumberedLevels,
+      levelsPerPhase: renumberedLevels.length
+    });
+  };
   
   // Toggle level completion
   const toggleLevelCompletion = (levelIndex: number) => {
@@ -175,6 +196,14 @@ const PhaseContainer: React.FC<PhaseContainerProps> = ({
       levels: updatedLevels
     });
   };
+
+  // Update phase goal
+  const handleUpdatePhaseGoal = (goalTarget?: number) => {
+    updatePhase({
+      ...phase,
+      goalTarget
+    });
+  };
   
   // Get bg class based on phase number
   const getPhaseBackgroundClass = () => {
@@ -195,51 +224,41 @@ const PhaseContainer: React.FC<PhaseContainerProps> = ({
         ? 'border-gray-700' 
         : 'border-gray-200'
     } ${getPhaseBackgroundClass()}`}>
-      {/* Risk Warnings */}
-      {showRiskWarnings && riskWarnings.length > 0 && (
-        <div className={`p-3 border-b ${
-          darkMode 
-            ? 'bg-yellow-900/20 border-yellow-700 text-yellow-200' 
-            : 'bg-yellow-50 border-yellow-200 text-yellow-800'
-        }`}>
-          <div className="flex items-start justify-between">
-            <div>
-              <h4 className="font-medium text-sm mb-1">Risk Management Alerts</h4>
-              <ul className="text-xs space-y-1">
-                {riskWarnings.map((warning, index) => (
-                  <li key={index}>• {warning}</li>
-                ))}
-              </ul>
-            </div>
-            <button
-              onClick={() => setShowRiskWarnings(false)}
-              className={`text-xs px-2 py-1 rounded ${
-                darkMode 
-                  ? 'bg-yellow-800 hover:bg-yellow-700' 
-                  : 'bg-yellow-200 hover:bg-yellow-300'
-              }`}
-            >
-              Dismiss
-            </button>
-          </div>
-        </div>
-      )}
       
       <PhaseHeader 
         phase={phase}
         expanded={expanded}
         onToggle={handleToggleExpanded}
         onDelete={handleDeletePhase}
+        onUpdateGoal={handleUpdatePhaseGoal}
         totalEndingBalance={getTotalEndingBalance()}
       />
       
       {expanded && (
-        <TradeTable 
-          levels={phase.levels}
-          onUpdateLevel={handleLevelUpdate}
-          onToggleCompletion={toggleLevelCompletion}
-          riskWarningThreshold={riskWarningThreshold}
-        />
+        <div className="space-y-4">
+          {/* Risk Warnings Panel */}
+          <RiskWarningsPanel 
+            warnings={riskWarnings}
+            show={riskWarnings.length > 0}
+          />
+
+          {/* Phase Goals */}
+          <div className="px-4">
+            <GoalTracker 
+              phases={[phase]} 
+              savedGoals={phaseGoals}
+              onGoalsChange={setPhaseGoals}
+            />
+          </div>
+          
+          <TradeTable 
+            levels={phase.levels}
+            onUpdateLevel={handleLevelUpdate}
+            onToggleCompletion={toggleLevelCompletion}
+            onDeleteLevel={handleDeleteLevel}
+            riskWarningThreshold={riskWarningThreshold}
+          />
+        </div>
       )}
     </div>
   );

@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { useTheme } from '../../contexts/ThemeContext';
 import { formatCurrency } from '../../utils/formatters';
 
@@ -17,7 +17,7 @@ const MonthlyPerformanceChart: React.FC<MonthlyPerformanceChartProps> = ({ data 
   
   if (data.length === 0) {
     return (
-      <div className={`rounded-lg shadow-sm border p-6 ${
+      <div className={`rounded-lg shadow-sm border p-4 ${
         darkMode 
           ? 'bg-gray-800 border-gray-700' 
           : 'bg-white border-gray-200'
@@ -25,15 +25,27 @@ const MonthlyPerformanceChart: React.FC<MonthlyPerformanceChartProps> = ({ data 
         <h3 className={`text-lg font-medium mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
           Monthly Performance
         </h3>
-        <div className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+        <div className={`text-center py-6 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
           No monthly data available
         </div>
       </div>
     );
   }
 
+  // Calculate Y-axis domain to show both positive and negative values clearly
+  const profits = data.map(d => d.profit);
+  const maxProfit = Math.max(...profits, 0);
+  const minProfit = Math.min(...profits, 0);
+  const range = maxProfit - minProfit;
+  const padding = range * 0.2;
+  
+  const yAxisDomain = [
+    minProfit - padding,
+    maxProfit + padding
+  ];
+
   return (
-    <div className={`rounded-lg shadow-sm border p-6 ${
+    <div className={`rounded-lg shadow-sm border p-4 ${
       darkMode 
         ? 'bg-gray-800 border-gray-700' 
         : 'bg-white border-gray-200'
@@ -41,9 +53,9 @@ const MonthlyPerformanceChart: React.FC<MonthlyPerformanceChartProps> = ({ data 
       <h3 className={`text-lg font-medium mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
         Monthly Performance
       </h3>
-      <div className="h-64">
+      <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data}>
+          <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
             <CartesianGrid 
               strokeDasharray="3 3" 
               stroke={darkMode ? '#374151' : '#e5e7eb'} 
@@ -51,19 +63,24 @@ const MonthlyPerformanceChart: React.FC<MonthlyPerformanceChartProps> = ({ data 
             <XAxis 
               dataKey="month" 
               stroke={darkMode ? '#9ca3af' : '#6b7280'}
-              fontSize={12}
+              fontSize={11}
+              tick={{ fontSize: 10 }}
             />
             <YAxis 
               stroke={darkMode ? '#9ca3af' : '#6b7280'}
-              fontSize={12}
+              fontSize={11}
               tickFormatter={(value) => formatCurrency(value)}
+              domain={yAxisDomain}
+              tick={{ fontSize: 10 }}
             />
+            <ReferenceLine y={0} stroke={darkMode ? '#6b7280' : '#9ca3af'} strokeDasharray="2 2" />
             <Tooltip 
               contentStyle={{
                 backgroundColor: darkMode ? '#1f2937' : '#ffffff',
                 border: `1px solid ${darkMode ? '#374151' : '#e5e7eb'}`,
                 borderRadius: '6px',
                 color: darkMode ? '#ffffff' : '#000000',
+                fontSize: '12px',
               }}
               formatter={(value: number, name: string) => {
                 if (name === 'profit') return [formatCurrency(value), 'Profit/Loss'];
@@ -76,9 +93,16 @@ const MonthlyPerformanceChart: React.FC<MonthlyPerformanceChartProps> = ({ data 
               dataKey="profit" 
               fill={(entry: any) => entry.profit >= 0 ? '#10b981' : '#ef4444'}
               radius={[2, 2, 0, 0]}
-            />
+            >
+              {data.map((entry, index) => (
+                <Bar key={`cell-${index}`} fill={entry.profit >= 0 ? '#10b981' : '#ef4444'} />
+              ))}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
+      </div>
+      <div className={`mt-2 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+        Monthly profit/loss with zero reference line for better visualization
       </div>
     </div>
   );

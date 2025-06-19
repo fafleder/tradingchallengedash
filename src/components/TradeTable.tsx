@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, X, AlertTriangle, FileText } from 'lucide-react';
+import { Check, X, AlertTriangle, FileText, Trash2 } from 'lucide-react';
 import { Level } from '../types/Phase';
 import { formatCurrency, formatNumber } from '../utils/formatters';
 import { useTheme } from '../contexts/ThemeContext';
@@ -9,6 +9,7 @@ interface TradeTableProps {
   levels: Level[];
   onUpdateLevel: (levelIndex: number, updates: Partial<Level>) => void;
   onToggleCompletion: (levelIndex: number) => void;
+  onDeleteLevel: (levelIndex: number) => void;
   riskWarningThreshold: number;
 }
 
@@ -16,6 +17,7 @@ const TradeTable: React.FC<TradeTableProps> = ({
   levels, 
   onUpdateLevel,
   onToggleCompletion,
+  onDeleteLevel,
   riskWarningThreshold
 }) => {
   const { darkMode } = useTheme();
@@ -92,6 +94,11 @@ const TradeTable: React.FC<TradeTableProps> = ({
               darkMode ? 'text-gray-300' : 'text-gray-500'
             }`}>
               Notes
+            </th>
+            <th className={`px-2 py-2 text-left text-xs font-medium uppercase tracking-wider w-8 ${
+              darkMode ? 'text-gray-300' : 'text-gray-500'
+            }`}>
+              Action
             </th>
           </tr>
         </thead>
@@ -305,6 +312,19 @@ const TradeTable: React.FC<TradeTableProps> = ({
                     title={level.notes || 'Add notes'}
                   >
                     <FileText className="h-4 w-4" />
+                  </button>
+                </td>
+                <td className="px-2 py-2 whitespace-nowrap text-sm">
+                  <button
+                    onClick={() => onDeleteLevel(index)}
+                    className={`p-1 rounded transition-colors ${
+                      darkMode
+                        ? 'text-red-400 hover:text-red-300 hover:bg-gray-600'
+                        : 'text-red-600 hover:text-red-800 hover:bg-red-50'
+                    }`}
+                    title="Delete level"
+                  >
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </td>
               </tr>

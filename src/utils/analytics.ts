@@ -44,7 +44,7 @@ export class AnalyticsEngine {
     const totalRisked = allTrades.reduce((sum, trade) => sum + (trade.riskedAmount || 0), 0);
     const returnOnRisk = totalRisked > 0 ? (totalProfitLoss / totalRisked) * 100 : 0;
     
-    // Calculate max drawdown with improved algorithm
+    // Calculate max drawdown based on initial capital
     let maxDrawdown = 0;
     let peak = 0;
     let runningPL = 0;
@@ -54,7 +54,12 @@ export class AnalyticsEngine {
     peak = initialCapital;
     runningPL = initialCapital;
     
-    for (const trade of allTrades) {
+    // Sort trades by date to get chronological order
+    const sortedTrades = allTrades
+      .filter(trade => trade.date)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    
+    for (const trade of sortedTrades) {
       runningPL += trade.pl;
       if (runningPL > peak) {
         peak = runningPL;

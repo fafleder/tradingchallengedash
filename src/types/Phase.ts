@@ -36,6 +36,7 @@ export interface AppState {
   historicalPhases: Phase[];
   settings: AppSettings;
   expandedPhases?: number[];
+  globalGoals?: any[];
 }
 
 export interface AppSettings {

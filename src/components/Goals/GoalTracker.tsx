@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Target, TrendingUp, Calendar, Award, Plus, Edit2, Trash2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Target, TrendingUp, Calendar, Award, Plus, Edit2, Trash2, X } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Phase } from '../../types/Phase';
 import { formatCurrency, formatPercent } from '../../utils/formatters';
@@ -11,16 +11,19 @@ interface Goal {
   targetAmount: number;
   currentAmount: number;
   deadline?: string;
-  category: 'profit' | 'consistency' | 'risk' | 'growth';
+  category: 'profit' | 'consistency' | 'risk' | 'growth' | 'winrate' | 'drawdown' | 'streak' | 'monthly';
   isCompleted: boolean;
   createdAt: Date;
+  isEditable: boolean;
 }
 
 interface GoalTrackerProps {
   phases: Phase[];
+  onGoalsChange?: (goals: Goal[]) => void;
+  savedGoals?: Goal[];
 }
 
-const GoalTracker: React.FC<GoalTrackerProps> = ({ phases }) => {
+const GoalTracker: React.FC<GoalTrackerProps> = ({ phases, onGoalsChange, savedGoals = [] }) => {
   const { darkMode } = useTheme();
   const [goals, setGoals] = useState<Goal[]>([
     {
@@ -33,6 +36,7 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ phases }) => {
       category: 'growth',
       isCompleted: false,
       createdAt: new Date(),
+      isEditable: false,
     },
     {
       id: '2',
@@ -40,12 +44,58 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ phases }) => {
       description: 'Achieve and maintain a 70% win rate over 100 trades',
       targetAmount: 70,
       currentAmount: 0,
-      category: 'consistency',
+      category: 'winrate',
       isCompleted: false,
       createdAt: new Date(),
+      isEditable: false,
+    },
+    {
+      id: '3',
+      title: 'Keep Drawdown Under 10%',
+      description: 'Maintain maximum drawdown below 10% of initial capital',
+      targetAmount: 10,
+      currentAmount: 0,
+      category: 'drawdown',
+      isCompleted: false,
+      createdAt: new Date(),
+      isEditable: false,
+    },
+    {
+      id: '4',
+      title: 'Achieve 5-Trade Win Streak',
+      description: 'Get 5 consecutive winning trades',
+      targetAmount: 5,
+      currentAmount: 0,
+      category: 'streak',
+      isCompleted: false,
+      createdAt: new Date(),
+      isEditable: false,
+    },
+    {
+      id: '5',
+      title: 'Monthly Profit Target',
+      description: 'Achieve $5,000 profit this month',
+      targetAmount: 5000,
+      currentAmount: 0,
+      category: 'monthly',
+      isCompleted: false,
+      createdAt: new Date(),
+      isEditable: false,
+    },
+    {
+      id: '6',
+      title: 'Risk Management Excellence',
+      description: 'Keep average risk per trade below 2%',
+      targetAmount: 2,
+      currentAmount: 0,
+      category: 'risk',
+      isCompleted: false,
+      createdAt: new Date(),
+      isEditable: false,
     },
   ]);
   const [showAddGoal, setShowAddGoal] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<string | null>(null);
   const [newGoal, setNewGoal] = useState({
     title: '',
     description: '',
@@ -54,6 +104,18 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ phases }) => {
     category: 'profit' as Goal['category'],
   });
 
+  // Load saved goals on mount
+  useEffect(() => {
+    if (savedGoals.length > 0) {
+      setGoals(savedGoals);
+    }
+  }, []);
+
+  // Save goals when they change
+  useEffect(() => {
+    onGoalsChange?.(goals);
+  }, [goals, onGoalsChange]);
+
   // Calculate current metrics from phases
   const calculateCurrentMetrics = () => {
     const allTrades = phases.flatMap(phase => phase.levels.filter(l => l.completed));
@@ -61,10 +123,55 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ phases }) => {
     const winningTrades = allTrades.filter(trade => trade.pl > 0).length;
     const winRate = allTrades.length > 0 ? (winningTrades / allTrades.length) * 100 : 0;
     
+    // Calculate current win streak
+    let currentWinStreak = 0;
+    for (let i = allTrades.length - 1; i >= 0; i--) {
+      if (allTrades[i].pl > 0) {
+        currentWinStreak++;
+      } else {
+        break;
+      }
+    }
+
+    // Calculate max drawdown percentage
+    const initialCapital = phases.length > 0 ? phases[0].initialCapital : 0;
+    let maxDrawdown = 0;
+    let peak = initialCapital;
+    let runningBalance = initialCapital;
+    
+    for (const trade of allTrades) {
+      runningBalance += trade.pl;
+      if (runningBalance > peak) {
+        peak = runningBalance;
+      }
+      const drawdown = ((peak - runningBalance) / initialCapital) * 100;
+      if (drawdown > maxDrawdown) {
+        maxDrawdown = drawdown;
+      }
+    }
+
+    // Calculate monthly profit
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    const monthlyTrades = allTrades.filter(trade => {
+      const tradeDate = new Date(trade.date);
+      return tradeDate.getMonth() === currentMonth && tradeDate.getFullYear() === currentYear;
+    });
+    const monthlyProfit = monthlyTrades.reduce((sum, trade) => sum + trade.pl, 0);
+
+    // Calculate average risk
+    const avgRisk = allTrades.length > 0 
+      ? allTrades.reduce((sum, trade) => sum + trade.riskPercent, 0) / allTrades.length 
+      : 0;
+    
     return {
       totalPL,
       winRate,
       totalTrades: allTrades.length,
+      currentWinStreak,
+      maxDrawdownPercent: maxDrawdown,
+      monthlyProfit,
+      avgRisk,
     };
   };
 
@@ -80,8 +187,31 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ phases }) => {
         currentAmount = metrics.totalPL;
         break;
       case 'consistency':
+      case 'winrate':
         currentAmount = metrics.winRate;
         break;
+      case 'drawdown':
+        currentAmount = metrics.maxDrawdownPercent;
+        // For drawdown, goal is achieved when current is BELOW target
+        return {
+          ...goal,
+          currentAmount,
+          isCompleted: currentAmount <= goal.targetAmount,
+        };
+      case 'streak':
+        currentAmount = metrics.currentWinStreak;
+        break;
+      case 'monthly':
+        currentAmount = metrics.monthlyProfit;
+        break;
+      case 'risk':
+        currentAmount = metrics.avgRisk;
+        // For risk, goal is achieved when current is BELOW target
+        return {
+          ...goal,
+          currentAmount,
+          isCompleted: currentAmount <= goal.targetAmount,
+        };
       default:
         break;
     }
@@ -104,6 +234,7 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ phases }) => {
       currentAmount: 0,
       isCompleted: false,
       createdAt: new Date(),
+      isEditable: true,
     };
     
     setGoals([...goals, goal]);
@@ -121,15 +252,26 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ phases }) => {
     setGoals(goals.filter(goal => goal.id !== id));
   };
 
+  const handleEditGoal = (id: string, updates: Partial<Goal>) => {
+    setGoals(goals.map(goal => 
+      goal.id === id ? { ...goal, ...updates } : goal
+    ));
+    setEditingGoal(null);
+  };
+
   const getCategoryIcon = (category: Goal['category']) => {
     switch (category) {
       case 'profit':
+      case 'growth':
+      case 'monthly':
         return <TrendingUp className="h-5 w-5" />;
       case 'consistency':
+      case 'winrate':
         return <Target className="h-5 w-5" />;
       case 'risk':
+      case 'drawdown':
         return <Award className="h-5 w-5" />;
-      case 'growth':
+      case 'streak':
         return <Calendar className="h-5 w-5" />;
       default:
         return <Target className="h-5 w-5" />;
@@ -139,17 +281,36 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ phases }) => {
   const getCategoryColor = (category: Goal['category']) => {
     switch (category) {
       case 'profit':
+      case 'growth':
+      case 'monthly':
         return 'text-green-600 bg-green-100 dark:bg-green-900 dark:text-green-300';
       case 'consistency':
+      case 'winrate':
         return 'text-blue-600 bg-blue-100 dark:bg-blue-900 dark:text-blue-300';
       case 'risk':
+      case 'drawdown':
         return 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900 dark:text-yellow-300';
-      case 'growth':
+      case 'streak':
         return 'text-purple-600 bg-purple-100 dark:bg-purple-900 dark:text-purple-300';
       default:
         return 'text-gray-600 bg-gray-100 dark:bg-gray-900 dark:text-gray-300';
     }
   };
+
+  // Close editing when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (editingGoal && !(event.target as Element).closest('.goal-edit-form')) {
+        setEditingGoal(null);
+      }
+      if (showAddGoal && !(event.target as Element).closest('.add-goal-modal')) {
+        setShowAddGoal(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [editingGoal, showAddGoal]);
 
   return (
     <div className={`rounded-lg shadow-sm border p-6 ${
@@ -173,7 +334,9 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ phases }) => {
       {/* Goals Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         {updatedGoals.map((goal) => {
-          const progress = goal.targetAmount > 0 ? (goal.currentAmount / goal.targetAmount) * 100 : 0;
+          const progress = goal.category === 'drawdown' || goal.category === 'risk'
+            ? goal.targetAmount > 0 ? Math.max(0, 100 - (goal.currentAmount / goal.targetAmount) * 100) : 0
+            : goal.targetAmount > 0 ? (goal.currentAmount / goal.targetAmount) * 100 : 0;
           const isOverdue = goal.deadline && new Date(goal.deadline) < new Date() && !goal.isCompleted;
           
           return (
@@ -187,77 +350,140 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ phases }) => {
                     : (darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200')
               }`}
             >
-              <div className="flex justify-between items-start mb-3">
-                <div className="flex items-center space-x-2">
-                  <div className={`p-2 rounded-lg ${getCategoryColor(goal.category)}`}>
-                    {getCategoryIcon(goal.category)}
-                  </div>
-                  <div>
-                    <h3 className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                      {goal.title}
-                    </h3>
-                    {goal.isCompleted && (
-                      <span className="text-xs text-green-600 dark:text-green-400">
-                        ✅ Completed!
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <button
-                  onClick={() => handleDeleteGoal(goal.id)}
-                  className={`p-1 rounded-full transition-colors ${
-                    darkMode
-                      ? 'text-gray-400 hover:text-red-400 hover:bg-gray-600'
-                      : 'text-gray-400 hover:text-red-600 hover:bg-gray-100'
-                  }`}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-
-              <p className={`text-sm mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                {goal.description}
-              </p>
-
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Progress</span>
-                  <span className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {goal.category === 'consistency' 
-                      ? `${goal.currentAmount.toFixed(1)}% / ${goal.targetAmount}%`
-                      : `${formatCurrency(goal.currentAmount)} / ${formatCurrency(goal.targetAmount)}`
-                    }
-                  </span>
-                </div>
-                
-                <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                  <div 
-                    className={`h-2 rounded-full transition-all duration-500 ${
-                      goal.isCompleted 
-                        ? 'bg-green-500' 
-                        : progress > 75 
-                          ? 'bg-blue-500' 
-                          : 'bg-gray-400'
+              {editingGoal === goal.id ? (
+                <div className="goal-edit-form space-y-3">
+                  <input
+                    type="text"
+                    value={goal.title}
+                    onChange={(e) => handleEditGoal(goal.id, { title: e.target.value })}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 ${
+                      darkMode
+                        ? 'bg-gray-600 border-gray-500 text-white'
+                        : 'bg-white border-gray-300 text-gray-900'
                     }`}
-                    style={{ width: `${Math.min(progress, 100)}%` }}
-                  ></div>
+                  />
+                  <textarea
+                    value={goal.description}
+                    onChange={(e) => handleEditGoal(goal.id, { description: e.target.value })}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 ${
+                      darkMode
+                        ? 'bg-gray-600 border-gray-500 text-white'
+                        : 'bg-white border-gray-300 text-gray-900'
+                    }`}
+                    rows={2}
+                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      value={goal.targetAmount}
+                      onChange={(e) => handleEditGoal(goal.id, { targetAmount: parseFloat(e.target.value) || 0 })}
+                      className={`flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 ${
+                        darkMode
+                          ? 'bg-gray-600 border-gray-500 text-white'
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
+                    />
+                    <input
+                      type="date"
+                      value={goal.deadline || ''}
+                      onChange={(e) => handleEditGoal(goal.id, { deadline: e.target.value })}
+                      className={`flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 ${
+                        darkMode
+                          ? 'bg-gray-600 border-gray-500 text-white'
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
+                    />
+                  </div>
                 </div>
-                
-                <div className="flex justify-between text-xs">
-                  <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>
-                    {Math.min(progress, 100).toFixed(1)}% complete
-                  </span>
-                  {goal.deadline && (
-                    <span className={`${
-                      isOverdue 
-                        ? 'text-red-500' 
-                        : (darkMode ? 'text-gray-400' : 'text-gray-500')
-                    }`}>
-                      Due: {new Date(goal.deadline).toLocaleDateString()}
-                    </span>
-                  )}
-                </div>
-              </div>
+              ) : (
+                <>
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-center space-x-2">
+                      <div className={`p-2 rounded-lg ${getCategoryColor(goal.category)}`}>
+                        {getCategoryIcon(goal.category)}
+                      </div>
+                      <div>
+                        <h3 className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {goal.title}
+                        </h3>
+                        {goal.isCompleted && (
+                          <span className="text-xs text-green-600 dark:text-green-400">
+                            ✅ Completed!
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      {goal.isEditable && (
+                        <button
+                          onClick={() => setEditingGoal(goal.id)}
+                          className={`p-1 rounded-full transition-colors ${
+                            darkMode
+                              ? 'text-gray-400 hover:text-blue-400 hover:bg-gray-600'
+                              : 'text-gray-400 hover:text-blue-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDeleteGoal(goal.id)}
+                        className={`p-1 rounded-full transition-colors ${
+                          darkMode
+                            ? 'text-gray-400 hover:text-red-400 hover:bg-gray-600'
+                            : 'text-gray-400 hover:text-red-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <p className={`text-sm mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                    {goal.description}
+                  </p>
+
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Progress</span>
+                      <span className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {goal.category === 'consistency' || goal.category === 'winrate' || goal.category === 'drawdown' || goal.category === 'risk'
+                          ? `${goal.currentAmount.toFixed(1)}% / ${goal.targetAmount}%`
+                          : `${formatCurrency(goal.currentAmount)} / ${formatCurrency(goal.targetAmount)}`
+                        }
+                      </span>
+                    </div>
+                    
+                    <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                      <div 
+                        className={`h-2 rounded-full transition-all duration-500 ${
+                          goal.isCompleted 
+                            ? 'bg-green-500' 
+                            : progress > 75 
+                              ? 'bg-blue-500' 
+                              : 'bg-gray-400'
+                        }`}
+                        style={{ width: `${Math.min(progress, 100)}%` }}
+                      ></div>
+                    </div>
+                    
+                    <div className="flex justify-between text-xs">
+                      <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>
+                        {Math.min(progress, 100).toFixed(1)}% complete
+                      </span>
+                      {goal.deadline && (
+                        <span className={`${
+                          isOverdue 
+                            ? 'text-red-500' 
+                            : (darkMode ? 'text-gray-400' : 'text-gray-500')
+                        }`}>
+                          Due: {new Date(goal.deadline).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           );
         })}
@@ -266,12 +492,24 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ phases }) => {
       {/* Add Goal Modal */}
       {showAddGoal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className={`rounded-lg shadow-lg max-w-md w-full p-6 ${
+          <div className={`add-goal-modal rounded-lg shadow-lg max-w-md w-full p-6 ${
             darkMode ? 'bg-gray-800' : 'bg-white'
           }`}>
-            <h3 className={`text-lg font-medium mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              Add New Goal
-            </h3>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className={`text-lg font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                Add New Goal
+              </h3>
+              <button
+                onClick={() => setShowAddGoal(false)}
+                className={`p-1 rounded-full transition-colors ${
+                  darkMode
+                    ? 'text-gray-400 hover:text-white hover:bg-gray-700'
+                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
             
             <div className="space-y-4">
               <div>
@@ -351,6 +589,10 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ phases }) => {
                     <option value="consistency">Consistency</option>
                     <option value="risk">Risk Management</option>
                     <option value="growth">Growth</option>
+                    <option value="winrate">Win Rate</option>
+                    <option value="drawdown">Drawdown</option>
+                    <option value="streak">Win Streak</option>
+                    <option value="monthly">Monthly Target</option>
                   </select>
                 </div>
               </div>

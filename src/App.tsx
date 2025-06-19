@@ -24,8 +24,9 @@ function AppContent() {
   const [currentPhase, setCurrentPhase] = useState(0);
   const [phases, setPhases] = useState<Phase[]>([]);
   const [historicalPhases, setHistoricalPhases] = useState<Phase[]>([]);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'phases' | 'analytics' | 'journal' | 'goals'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'phases' | 'analytics' | 'journal'>('dashboard');
   const [expandedPhases, setExpandedPhases] = useState<Set<number>>(new Set());
+  const [globalGoals, setGlobalGoals] = useState<any[]>([]);
   const [settings, setSettings] = useState<AppSettings>({
     darkMode: false,
     riskWarningThreshold: 3,
@@ -42,6 +43,7 @@ function AppContent() {
       setCurrentPhase(savedState.currentPhase);
       setPhases(savedState.phases);
       setHistoricalPhases(savedState.historicalPhases || []);
+      setGlobalGoals(savedState.globalGoals || []);
       if (savedState.settings) {
         setSettings(savedState.settings);
       }
@@ -57,16 +59,17 @@ function AppContent() {
 
   // Auto-save to localStorage when state changes
   useEffect(() => {
-    if (phases.length > 0 || historicalPhases.length > 0) {
+    if (phases.length > 0 || historicalPhases.length > 0 || globalGoals.length > 0) {
       StorageManager.saveToLocalStorage({
         currentPhase,
         phases,
         historicalPhases,
         settings,
         expandedPhases: Array.from(expandedPhases),
+        globalGoals,
       });
     }
-  }, [currentPhase, phases, historicalPhases, settings, expandedPhases]);
+  }, [currentPhase, phases, historicalPhases, settings, expandedPhases, globalGoals]);
 
   // Auto-backup functionality
   useEffect(() => {
@@ -78,12 +81,13 @@ function AppContent() {
           historicalPhases,
           settings,
           expandedPhases: Array.from(expandedPhases),
+          globalGoals,
         });
       }, 300000); // Auto-save every 5 minutes
 
       return () => clearInterval(interval);
     }
-  }, [settings.autoBackup, currentPhase, phases, historicalPhases, settings, expandedPhases]);
+  }, [settings.autoBackup, currentPhase, phases, historicalPhases, settings, expandedPhases, globalGoals]);
 
   // Persist expanded phases state across tab changes
   useEffect(() => {
@@ -141,6 +145,7 @@ function AppContent() {
       historicalPhases,
       settings,
       expandedPhases: Array.from(expandedPhases),
+      globalGoals,
     });
   };
 
@@ -149,6 +154,7 @@ function AppContent() {
       setCurrentPhase(data.currentPhase || 0);
       setPhases(data.phases || []);
       setHistoricalPhases(data.historicalPhases || []);
+      setGlobalGoals(data.globalGoals || []);
       if (data.settings) {
         setSettings(data.settings);
       }
@@ -218,9 +224,12 @@ function AppContent() {
   // Keyboard shortcuts
   useKeyboardShortcuts({
     onNewPhase: () => {
+      setActiveTab('phases');
       // Focus on initial capital input
-      const input = document.getElementById('initialCapital');
-      if (input) input.focus();
+      setTimeout(() => {
+        const input = document.getElementById('initialCapital');
+        if (input) input.focus();
+      }, 100);
     },
     onSave: handleSaveToFile,
     onExportData: handleExportCSV,
@@ -231,7 +240,6 @@ function AppContent() {
     { id: 'phases' as const, label: 'Active Phases', count: phases.length },
     { id: 'analytics' as const, label: 'Advanced Analytics', count: performanceMetrics.totalTrades },
     { id: 'journal' as const, label: 'Trade Journal', count: performanceMetrics.totalTrades },
-    { id: 'goals' as const, label: 'Goals', count: 0 },
   ];
 
   return (
@@ -245,15 +253,6 @@ function AppContent() {
         />
         
         <main className="container mx-auto px-4 py-6 flex-grow">
-          <InputSection 
-            onStartNewPhase={handleStartNewPhase} 
-            onSaveToFile={handleSaveToFile}
-            onLoadFromFile={handleLoadFromFile}
-            onExportPDF={handleExportPDF}
-            onExportCSV={handleExportCSV}
-            settings={settings}
-          />
-          
           {/* Navigation Tabs */}
           <div className="mb-6">
             <nav className="flex space-x-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg overflow-x-auto">
@@ -287,7 +286,7 @@ function AppContent() {
             {activeTab === 'dashboard' && (
               <div className="space-y-6">
                 {performanceMetrics.totalTrades > 0 && (
-                  <PerformanceDashboard metrics={performanceMetrics} />
+                  <PerformanceDashboard metrics={performanceMetrics} phases={allPhases} />
                 )}
                 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 grid-responsive">
@@ -306,6 +305,15 @@ function AppContent() {
             {/* Active Phases Tab */}
             {activeTab === 'phases' && (
               <div className="space-y-6">
+                <InputSection 
+                  onStartNewPhase={handleStartNewPhase} 
+                  onSaveToFile={handleSaveToFile}
+                  onLoadFromFile={handleLoadFromFile}
+                  onExportPDF={handleExportPDF}
+                  onExportCSV={handleExportCSV}
+                  settings={settings}
+                />
+
                 {phases.map(phase => (
                   <PhaseContainer 
                     key={phase.phaseNumber} 
@@ -319,6 +327,7 @@ function AppContent() {
                 ))}
                 
                 {phases.length === 0 && (
+                  
                   <div className="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400">
                     <BarChart3 size={48} className="mb-4 opacity-50" />
                     <p className="text-xl font-medium">No active phases</p>
@@ -336,11 +345,6 @@ function AppContent() {
             {/* Trade Journal Tab */}
             {activeTab === 'journal' && (
               <TradeJournal phases={allPhases} />
-            )}
-
-            {/* Goals Tab */}
-            {activeTab === 'goals' && (
-              <GoalTracker phases={allPhases} />
             )}
           </div>
         </main>
