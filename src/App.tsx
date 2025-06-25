@@ -24,7 +24,7 @@ function AppContent() {
   const [currentPhase, setCurrentPhase] = useState(0);
   const [phases, setPhases] = useState<Phase[]>([]);
   const [historicalPhases, setHistoricalPhases] = useState<Phase[]>([]);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'phases' | 'analytics' | 'journal'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'phases' | 'analytics' | 'journal' | 'goals'>('dashboard');
   const [expandedPhases, setExpandedPhases] = useState<Set<number>>(new Set());
   const [globalGoals, setGlobalGoals] = useState<any[]>([]);
   const [settings, setSettings] = useState<AppSettings>({
@@ -240,6 +240,7 @@ function AppContent() {
     { id: 'phases' as const, label: 'Active Phases', count: phases.length },
     { id: 'analytics' as const, label: 'Advanced Analytics', count: performanceMetrics.totalTrades },
     { id: 'journal' as const, label: 'Trade Journal', count: performanceMetrics.totalTrades },
+    { id: 'goals' as const, label: 'Goal Tracker', count: globalGoals.length },
   ];
 
   return (
@@ -345,6 +346,15 @@ function AppContent() {
             {/* Trade Journal Tab */}
             {activeTab === 'journal' && (
               <TradeJournal phases={allPhases} />
+            )}
+
+            {/* Goals Tab */}
+            {activeTab === 'goals' && (
+              <GoalTracker 
+                phases={allPhases} 
+                savedGoals={globalGoals}
+                onGoalsChange={setGlobalGoals}
+              />
             )}
           </div>
         </main>

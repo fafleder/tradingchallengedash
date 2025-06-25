@@ -5,7 +5,6 @@ import { RiskManager } from '../utils/riskManager';
 import { useTheme } from '../contexts/ThemeContext';
 import PhaseHeader from './PhaseHeader';
 import TradeTable from './TradeTable';
-import GoalTracker from './Goals/GoalTracker';
 import RiskWarningsPanel from './RiskWarnings/RiskWarningsPanel';
 
 interface PhaseContainerProps {
@@ -27,7 +26,6 @@ const PhaseContainer: React.FC<PhaseContainerProps> = ({
 }) => {
   const { darkMode } = useTheme();
   const [showRiskWarnings, setShowRiskWarnings] = useState(false);
-  const [phaseGoals, setPhaseGoals] = useState<any[]>([]);
   const expanded = expandedPhases.has(phase.phaseNumber);
   
   // Calculate total ending balance 
@@ -241,15 +239,6 @@ const PhaseContainer: React.FC<PhaseContainerProps> = ({
             warnings={riskWarnings}
             show={riskWarnings.length > 0}
           />
-
-          {/* Phase Goals */}
-          <div className="px-4">
-            <GoalTracker 
-              phases={[phase]} 
-              savedGoals={phaseGoals}
-              onGoalsChange={setPhaseGoals}
-            />
-          </div>
           
           <TradeTable 
             levels={phase.levels}

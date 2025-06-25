@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Target, TrendingUp, Calendar, Award, Plus, Edit2, Trash2, X } from 'lucide-react';
+import { Target, TrendingUp, Calendar, Award, Plus, Settings, Trash2, X } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Phase } from '../../types/Phase';
 import { formatCurrency, formatPercent } from '../../utils/formatters';
@@ -93,6 +93,28 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ phases, onGoalsChange, savedG
       createdAt: new Date(),
       isEditable: false,
     },
+    {
+      id: '7',
+      title: 'Consistency Champion',
+      description: 'Maintain 80% consistency score over 50 trades',
+      targetAmount: 80,
+      currentAmount: 0,
+      category: 'consistency',
+      isCompleted: false,
+      createdAt: new Date(),
+      isEditable: false,
+    },
+    {
+      id: '8',
+      title: 'Profit Factor Excellence',
+      description: 'Achieve profit factor above 2.0',
+      targetAmount: 2,
+      currentAmount: 0,
+      category: 'profit',
+      isCompleted: false,
+      createdAt: new Date(),
+      isEditable: false,
+    },
   ]);
   const [showAddGoal, setShowAddGoal] = useState(false);
   const [editingGoal, setEditingGoal] = useState<string | null>(null);
@@ -163,6 +185,18 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ phases, onGoalsChange, savedG
     const avgRisk = allTrades.length > 0 
       ? allTrades.reduce((sum, trade) => sum + trade.riskPercent, 0) / allTrades.length 
       : 0;
+
+    // Calculate profit factor
+    const totalWins = allTrades.filter(t => t.pl > 0).reduce((sum, t) => sum + t.pl, 0);
+    const totalLosses = Math.abs(allTrades.filter(t => t.pl < 0).reduce((sum, t) => sum + t.pl, 0));
+    const profitFactor = totalLosses > 0 ? totalWins / totalLosses : totalWins > 0 ? Infinity : 0;
+
+    // Calculate consistency score (simplified)
+    const returns = allTrades.map(trade => trade.pl);
+    const mean = returns.reduce((sum, ret) => sum + ret, 0) / returns.length;
+    const variance = returns.reduce((sum, ret) => sum + Math.pow(ret - mean, 2), 0) / returns.length;
+    const stdDev = Math.sqrt(variance);
+    const consistencyScore = Math.max(0, 100 - (stdDev / Math.abs(mean)) * 100);
     
     return {
       totalPL,
@@ -172,6 +206,8 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ phases, onGoalsChange, savedG
       maxDrawdownPercent: maxDrawdown,
       monthlyProfit,
       avgRisk,
+      profitFactor: profitFactor === Infinity ? 999 : profitFactor,
+      consistencyScore: isNaN(consistencyScore) ? 0 : Math.min(100, consistencyScore),
     };
   };
 
@@ -183,6 +219,8 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ phases, onGoalsChange, savedG
     
     switch (goal.category) {
       case 'profit':
+        currentAmount = metrics.profitFactor;
+        break;
       case 'growth':
         currentAmount = metrics.totalPL;
         break;
@@ -256,7 +294,6 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ phases, onGoalsChange, savedG
     setGoals(goals.map(goal => 
       goal.id === id ? { ...goal, ...updates } : goal
     ));
-    setEditingGoal(null);
   };
 
   const getCategoryIcon = (category: Goal['category']) => {
@@ -319,9 +356,14 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ phases, onGoalsChange, savedG
         : 'bg-white border-gray-200'
     }`}>
       <div className="flex justify-between items-center mb-6">
-        <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-          Goal Tracker
-        </h2>
+        <div>
+          <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+            Goal Tracker
+          </h2>
+          <p className={`text-sm mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+            Track your trading goals and monitor progress across all phases
+          </p>
+        </div>
         <button
           onClick={() => setShowAddGoal(true)}
           className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
@@ -329,6 +371,45 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ phases, onGoalsChange, savedG
           <Plus className="h-4 w-4 mr-1" />
           Add Goal
         </button>
+      </div>
+
+      {/* Current Performance Summary */}
+      <div className={`mb-6 p-4 rounded-lg ${
+        darkMode ? 'bg-gray-700' : 'bg-gray-50'
+      }`}>
+        <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+          Current Performance Metrics
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div>
+            <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Total P/L:</span>
+            <span className={`ml-1 font-medium ${
+              metrics.totalPL >= 0 
+                ? (darkMode ? 'text-green-400' : 'text-green-600')
+                : (darkMode ? 'text-red-400' : 'text-red-600')
+            }`}>
+              {formatCurrency(metrics.totalPL)}
+            </span>
+          </div>
+          <div>
+            <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Win Rate:</span>
+            <span className={`ml-1 font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              {metrics.winRate.toFixed(1)}%
+            </span>
+          </div>
+          <div>
+            <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Win Streak:</span>
+            <span className={`ml-1 font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              {metrics.currentWinStreak}
+            </span>
+          </div>
+          <div>
+            <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Drawdown:</span>
+            <span className={`ml-1 font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              {metrics.maxDrawdownPercent.toFixed(1)}%
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Goals Grid */}
@@ -394,6 +475,24 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ phases, onGoalsChange, savedG
                       }`}
                     />
                   </div>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => setEditingGoal(null)}
+                      className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                        darkMode
+                          ? 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => setEditingGoal(null)}
+                      className="px-3 py-1 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                    >
+                      Save
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <>
@@ -414,18 +513,16 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ phases, onGoalsChange, savedG
                       </div>
                     </div>
                     <div className="flex gap-1">
-                      {goal.isEditable && (
-                        <button
-                          onClick={() => setEditingGoal(goal.id)}
-                          className={`p-1 rounded-full transition-colors ${
-                            darkMode
-                              ? 'text-gray-400 hover:text-blue-400 hover:bg-gray-600'
-                              : 'text-gray-400 hover:text-blue-600 hover:bg-gray-100'
-                          }`}
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </button>
-                      )}
+                      <button
+                        onClick={() => setEditingGoal(goal.id)}
+                        className={`p-1 rounded-full transition-colors ${
+                          darkMode
+                            ? 'text-gray-400 hover:text-blue-400 hover:bg-gray-600'
+                            : 'text-gray-400 hover:text-blue-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        <Settings className="h-4 w-4" />
+                      </button>
                       <button
                         onClick={() => handleDeleteGoal(goal.id)}
                         className={`p-1 rounded-full transition-colors ${
@@ -585,10 +682,10 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ phases, onGoalsChange, savedG
                         : 'bg-white border-gray-300 text-gray-900'
                     }`}
                   >
-                    <option value="profit">Profit</option>
+                    <option value="profit">Profit Factor</option>
+                    <option value="growth">Portfolio Growth</option>
                     <option value="consistency">Consistency</option>
                     <option value="risk">Risk Management</option>
-                    <option value="growth">Growth</option>
                     <option value="winrate">Win Rate</option>
                     <option value="drawdown">Drawdown</option>
                     <option value="streak">Win Streak</option>
