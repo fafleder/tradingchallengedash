@@ -59,32 +59,28 @@ const CalendarHeatmap: React.FC<CalendarHeatmapProps> = ({ phases }) => {
     return dataMap;
   }, [phases]);
 
-  // Get color intensity based on P&L
-  const getHeatmapColor = (pnl: number): string => {
-    if (pnl === 0) return darkMode ? 'bg-gray-700' : 'bg-gray-100';
+  // Get color classes based on P&L
+  const getHeatmapClasses = (pnl: number): string => {
+    if (pnl === 0) return darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-200';
     
     const maxPnl = Math.max(...Array.from(dayData.values()).map(d => Math.abs(d.pnl)));
     const intensity = Math.min(Math.abs(pnl) / maxPnl, 1);
     
     if (pnl > 0) {
-      // Green for profits
-      const opacity = Math.max(0.2, intensity);
-      return darkMode 
-        ? `bg-green-500` 
-        : `bg-green-500`;
+      // Green for profits with varying intensity
+      if (intensity > 0.8) return 'bg-green-600 border-green-500';
+      if (intensity > 0.6) return 'bg-green-500 border-green-400';
+      if (intensity > 0.4) return 'bg-green-400 border-green-300';
+      if (intensity > 0.2) return 'bg-green-300 border-green-200';
+      return 'bg-green-200 border-green-100';
     } else {
-      // Red for losses
-      const opacity = Math.max(0.2, intensity);
-      return darkMode 
-        ? `bg-red-500` 
-        : `bg-red-500`;
+      // Red for losses with varying intensity
+      if (intensity > 0.8) return 'bg-red-600 border-red-500';
+      if (intensity > 0.6) return 'bg-red-500 border-red-400';
+      if (intensity > 0.4) return 'bg-red-400 border-red-300';
+      if (intensity > 0.2) return 'bg-red-300 border-red-200';
+      return 'bg-red-200 border-red-100';
     }
-  };
-
-  const getOpacity = (pnl: number): number => {
-    if (pnl === 0) return 0.1;
-    const maxPnl = Math.max(...Array.from(dayData.values()).map(d => Math.abs(d.pnl)));
-    return Math.max(0.2, Math.min(Math.abs(pnl) / maxPnl, 1));
   };
 
   // Generate calendar days
@@ -111,7 +107,7 @@ const CalendarHeatmap: React.FC<CalendarHeatmapProps> = ({ phases }) => {
         isToday: dateStr === new Date().toISOString().split('T')[0]
       });
       
-      current.setDate(current.getDate() + 1);
+      current.setDate(current.setDate() + 1);
     }
     
     return days;
@@ -141,7 +137,7 @@ const CalendarHeatmap: React.FC<CalendarHeatmapProps> = ({ phases }) => {
     }`}>
       <div className="flex items-center justify-between mb-6">
         <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-          Trading Calendar
+          Trading Calendar Heatmap
         </h2>
         <div className="flex items-center gap-2">
           <button
@@ -202,67 +198,111 @@ const CalendarHeatmap: React.FC<CalendarHeatmapProps> = ({ phases }) => {
 
           {/* Calendar Grid */}
           <div className="grid grid-cols-7 gap-1">
-            {calendarDays.map((day, index) => (
-              <div
-                key={index}
-                onClick={() => day.data && setSelectedDay(day.data)}
-                className={`relative p-2 h-20 border rounded-lg cursor-pointer transition-all ${
-                  day.isCurrentMonth
-                    ? (darkMode ? 'border-gray-600' : 'border-gray-200')
-                    : (darkMode ? 'border-gray-700 opacity-50' : 'border-gray-100 opacity-50')
-                } ${
-                  day.data ? 'hover:shadow-md' : ''
-                } ${
-                  day.isToday ? (darkMode ? 'ring-2 ring-blue-500' : 'ring-2 ring-blue-500') : ''
-                }`}
-                style={{
-                  backgroundColor: day.data 
-                    ? `${getHeatmapColor(day.data.pnl).replace('bg-', '')}` 
-                    : undefined,
-                  opacity: day.data ? getOpacity(day.data.pnl) : undefined
-                }}
-              >
-                <div className={`text-sm font-medium ${
-                  day.isCurrentMonth 
-                    ? (darkMode ? 'text-white' : 'text-gray-900')
-                    : (darkMode ? 'text-gray-500' : 'text-gray-400')
-                }`}>
-                  {day.date.getDate()}
-                </div>
-                
-                {day.data && (
-                  <div className="absolute bottom-1 left-1 right-1">
-                    <div className={`text-xs font-bold ${
-                      day.data.pnl >= 0 
-                        ? 'text-white' 
-                        : 'text-white'
-                    }`}>
-                      {formatCurrency(day.data.pnl)}
-                    </div>
-                    <div className="text-xs text-white opacity-90">
-                      {day.data.trades} trade{day.data.trades !== 1 ? 's' : ''}
-                    </div>
+            {calendarDays.map((day, index) => {
+              const heatmapClasses = day.data ? getHeatmapClasses(day.data.pnl) : '';
+              const baseClasses = day.data 
+                ? heatmapClasses
+                : (darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-200');
+              
+              return (
+                <div
+                  key={index}
+                  onClick={() => day.data && setSelectedDay(day.data)}
+                  className={`relative p-2 h-20 border rounded-lg transition-all ${baseClasses} ${
+                    day.isCurrentMonth ? '' : 'opacity-50'
+                  } ${
+                    day.data ? 'cursor-pointer hover:shadow-md hover:scale-105' : ''
+                  } ${
+                    day.isToday ? 'ring-2 ring-blue-500' : ''
+                  }`}
+                >
+                  <div className={`text-sm font-medium ${
+                    day.data && Math.abs(day.data.pnl) > 0
+                      ? 'text-white'
+                      : day.isCurrentMonth 
+                        ? (darkMode ? 'text-white' : 'text-gray-900')
+                        : (darkMode ? 'text-gray-500' : 'text-gray-400')
+                  }`}>
+                    {day.date.getDate()}
                   </div>
-                )}
-              </div>
-            ))}
+                  
+                  {day.data && (
+                    <div className="absolute bottom-1 left-1 right-1">
+                      <div className="text-xs font-bold text-white">
+                        {formatCurrency(day.data.pnl)}
+                      </div>
+                      <div className="text-xs text-white opacity-90">
+                        {day.data.trades} trade{day.data.trades !== 1 ? 's' : ''}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Legend */}
-          <div className="mt-4 flex items-center justify-center space-x-4 text-sm">
+          <div className="mt-6 flex items-center justify-center space-x-6 text-sm">
             <div className="flex items-center space-x-2">
-              <div className="w-4 h-4 bg-red-500 opacity-30 rounded"></div>
-              <span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>Loss</span>
+              <div className="w-4 h-4 bg-red-600 rounded"></div>
+              <span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>High Loss</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 bg-red-300 rounded"></div>
+              <span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>Low Loss</span>
             </div>
             <div className="flex items-center space-x-2">
               <div className={`w-4 h-4 rounded ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}></div>
               <span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>No Trades</span>
             </div>
             <div className="flex items-center space-x-2">
-              <div className="w-4 h-4 bg-green-500 opacity-30 rounded"></div>
-              <span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>Profit</span>
+              <div className="w-4 h-4 bg-green-300 rounded"></div>
+              <span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>Low Profit</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 bg-green-600 rounded"></div>
+              <span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>High Profit</span>
             </div>
           </div>
+
+          {/* Summary Stats */}
+          {dayData.size > 0 && (
+            <div className={`mt-6 p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+              <h4 className={`font-medium mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                Trading Summary
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Trading Days:</span>
+                  <span className={`ml-1 font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {dayData.size}
+                  </span>
+                </div>
+                <div>
+                  <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Total Trades:</span>
+                  <span className={`ml-1 font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {Array.from(dayData.values()).reduce((sum, d) => sum + d.trades, 0)}
+                  </span>
+                </div>
+                <div>
+                  <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Total P&L:</span>
+                  <span className={`ml-1 font-medium ${
+                    Array.from(dayData.values()).reduce((sum, d) => sum + d.pnl, 0) >= 0
+                      ? (darkMode ? 'text-green-400' : 'text-green-600')
+                      : (darkMode ? 'text-red-400' : 'text-red-600')
+                  }`}>
+                    {formatCurrency(Array.from(dayData.values()).reduce((sum, d) => sum + d.pnl, 0))}
+                  </span>
+                </div>
+                <div>
+                  <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Profitable Days:</span>
+                  <span className={`ml-1 font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {Array.from(dayData.values()).filter(d => d.pnl > 0).length}/{dayData.size}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       ) : (
         /* List View */
