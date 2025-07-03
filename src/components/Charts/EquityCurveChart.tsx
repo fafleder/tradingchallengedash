@@ -35,9 +35,7 @@ const EquityCurveChart: React.FC<EquityCurveChartProps> = ({ data }) => {
     const startDate = new Date(data[0].date);
     const endDate = new Date(data[data.length - 1].date);
     
-    // Add 7 days buffer after last trade
-    endDate.setDate(endDate.getDate() + 7);
-    
+    // Don't extend beyond last trade date
     let currentEquity = data[0].equity;
     let dataIndex = 0;
     
@@ -124,7 +122,7 @@ const EquityCurveChart: React.FC<EquityCurveChartProps> = ({ data }) => {
         </ResponsiveContainer>
       </div>
       <div className={`mt-2 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-        Shows daily equity progression with trade points connected by continuous line
+        Daily equity progression showing continuous line through trading days only
       </div>
     </div>
   );

@@ -15,6 +15,7 @@ import AdvancedAnalytics from './components/Analytics/AdvancedAnalytics';
 import GoalTracker from './components/Goals/GoalTracker';
 import NotificationSystem from './components/Notifications/NotificationSystem';
 import MobileOptimizations from './components/Mobile/MobileOptimizations';
+import CalendarHeatmap from './components/Calendar/CalendarHeatmap';
 import { StorageManager } from './utils/storage';
 import { AnalyticsEngine } from './utils/analytics';
 import { ExportManager } from './utils/exportUtils';
@@ -24,7 +25,7 @@ function AppContent() {
   const [currentPhase, setCurrentPhase] = useState(0);
   const [phases, setPhases] = useState<Phase[]>([]);
   const [historicalPhases, setHistoricalPhases] = useState<Phase[]>([]);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'phases' | 'analytics' | 'journal' | 'goals'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'phases' | 'analytics' | 'journal' | 'goals' | 'calendar'>('dashboard');
   const [expandedPhases, setExpandedPhases] = useState<Set<number>>(new Set());
   const [globalGoals, setGlobalGoals] = useState<any[]>([]);
   const [settings, setSettings] = useState<AppSettings>({
@@ -240,6 +241,7 @@ function AppContent() {
     { id: 'phases' as const, label: 'Active Phases', count: phases.length },
     { id: 'analytics' as const, label: 'Advanced Analytics', count: performanceMetrics.totalTrades },
     { id: 'journal' as const, label: 'Trade Journal', count: performanceMetrics.totalTrades },
+    { id: 'calendar' as const, label: 'Trading Calendar', count: performanceMetrics.totalTrades },
     { id: 'goals' as const, label: 'Goal Tracker', count: globalGoals.length },
   ];
 
@@ -251,17 +253,19 @@ function AppContent() {
           onUpdateSettings={setSettings}
           onExportData={handleSaveToFile}
           onImportData={handleLoadFromFile}
+          onExportPDF={handleExportPDF}
+          onExportCSV={handleExportCSV}
         />
         
-        <main className="container mx-auto px-4 py-6 flex-grow">
+        <main className="flex-grow">
           {/* Navigation Tabs */}
-          <div className="mb-6">
-            <nav className="flex space-x-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg overflow-x-auto">
+          <div className="w-full px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <nav className="flex space-x-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg overflow-x-auto max-w-full">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex-shrink-0 flex items-center justify-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                  className={`flex-shrink-0 flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md transition-colors ${
                     activeTab === tab.id
                       ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
                       : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
@@ -282,7 +286,7 @@ function AppContent() {
             </nav>
           </div>
 
-          <div id="dashboard-content">
+          <div className="w-full px-6 py-6" id="dashboard-content">
             {/* Dashboard Tab */}
             {activeTab === 'dashboard' && (
               <div className="space-y-6">
@@ -290,7 +294,7 @@ function AppContent() {
                   <PerformanceDashboard metrics={performanceMetrics} phases={allPhases} />
                 )}
                 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 grid-responsive">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                   <EquityCurveChart data={equityCurve} />
                   <MonthlyPerformanceChart data={monthlyPerformance} />
                 </div>
@@ -308,10 +312,6 @@ function AppContent() {
               <div className="space-y-6">
                 <InputSection 
                   onStartNewPhase={handleStartNewPhase} 
-                  onSaveToFile={handleSaveToFile}
-                  onLoadFromFile={handleLoadFromFile}
-                  onExportPDF={handleExportPDF}
-                  onExportCSV={handleExportCSV}
                   settings={settings}
                 />
 
@@ -328,7 +328,6 @@ function AppContent() {
                 ))}
                 
                 {phases.length === 0 && (
-                  
                   <div className="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400">
                     <BarChart3 size={48} className="mb-4 opacity-50" />
                     <p className="text-xl font-medium">No active phases</p>
@@ -348,6 +347,11 @@ function AppContent() {
               <TradeJournal phases={allPhases} />
             )}
 
+            {/* Trading Calendar Tab */}
+            {activeTab === 'calendar' && (
+              <CalendarHeatmap phases={allPhases} />
+            )}
+
             {/* Goals Tab */}
             {activeTab === 'goals' && (
               <GoalTracker 
@@ -360,7 +364,7 @@ function AppContent() {
         </main>
         
         <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-4 transition-colors">
-          <div className="container mx-auto px-4 text-center text-sm text-gray-500 dark:text-gray-400">
+          <div className="w-full px-6 text-center text-sm text-gray-500 dark:text-gray-400">
             &copy; {new Date().getFullYear()} Trading Challenge Dashboard - Professional Edition
           </div>
         </footer>
