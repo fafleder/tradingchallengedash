@@ -107,7 +107,7 @@ const CalendarHeatmap: React.FC<CalendarHeatmapProps> = ({ phases }) => {
         isToday: dateStr === new Date().toISOString().split('T')[0]
       });
       
-      current.setDate(current.setDate() + 1);
+      current.setDate(current.getDate() + 1);
     }
     
     return days;
