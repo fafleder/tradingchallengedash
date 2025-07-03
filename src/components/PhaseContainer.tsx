@@ -11,6 +11,7 @@ interface PhaseContainerProps {
   phase: Phase;
   updatePhase: (phase: Phase) => void;
   onDeletePhase: (phaseNumber: number) => void;
+  onArchivePhase?: (phaseNumber: number) => void;
   riskWarningThreshold: number;
   expandedPhases: Set<number>;
   onToggleExpanded: (phaseNumber: number) => void;
@@ -20,6 +21,7 @@ const PhaseContainer: React.FC<PhaseContainerProps> = ({
   phase, 
   updatePhase, 
   onDeletePhase,
+  onArchivePhase,
   riskWarningThreshold,
   expandedPhases,
   onToggleExpanded
@@ -211,6 +213,12 @@ const PhaseContainer: React.FC<PhaseContainerProps> = ({
   const handleDeletePhase = () => {
     onDeletePhase(phase.phaseNumber);
   };
+
+  const handleArchivePhase = () => {
+    if (onArchivePhase) {
+      onArchivePhase(phase.phaseNumber);
+    }
+  };
   
   const handleToggleExpanded = () => {
     onToggleExpanded(phase.phaseNumber);
@@ -228,6 +236,7 @@ const PhaseContainer: React.FC<PhaseContainerProps> = ({
         expanded={expanded}
         onToggle={handleToggleExpanded}
         onDelete={handleDeletePhase}
+        onArchive={onArchivePhase ? handleArchivePhase : undefined}
         onUpdateGoal={handleUpdatePhaseGoal}
         totalEndingBalance={getTotalEndingBalance()}
       />

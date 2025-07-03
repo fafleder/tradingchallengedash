@@ -6,6 +6,7 @@ import Header from './components/Header';
 import InputSection from './components/InputSection';
 import PhaseContainer from './components/PhaseContainer';
 import HistoricalPhases from './components/HistoricalPhases';
+import ArchivedPhases from './components/ArchivedPhases';
 import PerformanceDashboard from './components/Dashboard/PerformanceDashboard';
 import EquityCurveChart from './components/Charts/EquityCurveChart';
 import MonthlyPerformanceChart from './components/Charts/MonthlyPerformanceChart';
@@ -25,6 +26,7 @@ function AppContent() {
   const [currentPhase, setCurrentPhase] = useState(0);
   const [phases, setPhases] = useState<Phase[]>([]);
   const [historicalPhases, setHistoricalPhases] = useState<Phase[]>([]);
+  const [archivedPhases, setArchivedPhases] = useState<Phase[]>([]);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'phases' | 'analytics' | 'journal' | 'goals' | 'calendar'>('dashboard');
   const [expandedPhases, setExpandedPhases] = useState<Set<number>>(new Set());
   const [globalGoals, setGlobalGoals] = useState<any[]>([]);
@@ -44,6 +46,7 @@ function AppContent() {
       setCurrentPhase(savedState.currentPhase);
       setPhases(savedState.phases);
       setHistoricalPhases(savedState.historicalPhases || []);
+      setArchivedPhases(savedState.archivedPhases || []);
       setGlobalGoals(savedState.globalGoals || []);
       if (savedState.settings) {
         setSettings(savedState.settings);
@@ -60,26 +63,28 @@ function AppContent() {
 
   // Auto-save to localStorage when state changes
   useEffect(() => {
-    if (phases.length > 0 || historicalPhases.length > 0 || globalGoals.length > 0) {
+    if (phases.length > 0 || historicalPhases.length > 0 || archivedPhases.length > 0 || globalGoals.length > 0) {
       StorageManager.saveToLocalStorage({
         currentPhase,
         phases,
         historicalPhases,
+        archivedPhases,
         settings,
         expandedPhases: Array.from(expandedPhases),
         globalGoals,
       });
     }
-  }, [currentPhase, phases, historicalPhases, settings, expandedPhases, globalGoals]);
+  }, [currentPhase, phases, historicalPhases, archivedPhases, settings, expandedPhases, globalGoals]);
 
   // Auto-backup functionality
   useEffect(() => {
-    if (settings.autoBackup && (phases.length > 0 || historicalPhases.length > 0)) {
+    if (settings.autoBackup && (phases.length > 0 || historicalPhases.length > 0 || archivedPhases.length > 0)) {
       const interval = setInterval(() => {
         StorageManager.saveToLocalStorage({
           currentPhase,
           phases,
           historicalPhases,
+          archivedPhases,
           settings,
           expandedPhases: Array.from(expandedPhases),
           globalGoals,
@@ -88,7 +93,7 @@ function AppContent() {
 
       return () => clearInterval(interval);
     }
-  }, [settings.autoBackup, currentPhase, phases, historicalPhases, settings, expandedPhases, globalGoals]);
+  }, [settings.autoBackup, currentPhase, phases, historicalPhases, archivedPhases, settings, expandedPhases, globalGoals]);
 
   // Persist expanded phases state across tab changes
   useEffect(() => {
@@ -144,6 +149,7 @@ function AppContent() {
       currentPhase,
       phases,
       historicalPhases,
+      archivedPhases,
       settings,
       expandedPhases: Array.from(expandedPhases),
       globalGoals,
@@ -155,6 +161,7 @@ function AppContent() {
       setCurrentPhase(data.currentPhase || 0);
       setPhases(data.phases || []);
       setHistoricalPhases(data.historicalPhases || []);
+      setArchivedPhases(data.archivedPhases || []);
       setGlobalGoals(data.globalGoals || []);
       if (data.settings) {
         setSettings(data.settings);
@@ -192,6 +199,65 @@ function AppContent() {
     });
   };
 
+  const handleArchivePhase = (phaseNumber: number) => {
+    const phaseToArchive = phases.find(phase => phase.phaseNumber === phaseNumber);
+    if (!phaseToArchive) return;
+
+    // Add end date to the phase
+    const archivedPhase = {
+      ...phaseToArchive,
+      endDate: new Date().toISOString().split('T')[0],
+    };
+
+    // Remove from active phases and add to archived
+    const updatedPhases = phases.filter(phase => phase.phaseNumber !== phaseNumber);
+    const renumberedPhases = updatedPhases.map((phase, index) => ({
+      ...phase,
+      phaseNumber: index + 1
+    }));
+    
+    setPhases(renumberedPhases);
+    setArchivedPhases([...archivedPhases, archivedPhase]);
+    setCurrentPhase(renumberedPhases.length);
+    
+    // Remove from expanded phases
+    setExpandedPhases(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(phaseNumber);
+      return newSet;
+    });
+  };
+
+  const handleUnarchivePhase = (phaseNumber: number) => {
+    const phaseToUnarchive = archivedPhases.find(phase => phase.phaseNumber === phaseNumber);
+    if (!phaseToUnarchive) return;
+
+    // Remove end date and assign new phase number
+    const newPhaseNumber = currentPhase + 1;
+    const unArchivedPhase = {
+      ...phaseToUnarchive,
+      phaseNumber: newPhaseNumber,
+      endDate: undefined,
+    };
+
+    // Remove from archived and add to active phases
+    setArchivedPhases(archivedPhases.filter(phase => phase.phaseNumber !== phaseNumber));
+    setPhases([...phases, unArchivedPhase]);
+    setCurrentPhase(newPhaseNumber);
+    
+    // Expand the unarchived phase
+    setExpandedPhases(prev => new Set([...prev, newPhaseNumber]));
+  };
+
+  const handleDeleteArchivedPhase = (phaseNumber: number) => {
+    const confirmDelete = window.confirm(
+      `Are you sure you want to permanently delete archived Phase ${phaseNumber}? This action cannot be undone.`
+    );
+    if (confirmDelete) {
+      setArchivedPhases(archivedPhases.filter(phase => phase.phaseNumber !== phaseNumber));
+    }
+  };
+
   const handleTogglePhaseExpanded = (phaseNumber: number) => {
     setExpandedPhases(prev => {
       const newSet = new Set(prev);
@@ -205,18 +271,18 @@ function AppContent() {
   };
 
   const handleExportPDF = async () => {
-    const allPhases = [...historicalPhases, ...phases];
+    const allPhases = [...historicalPhases, ...phases, ...archivedPhases];
     const metrics = AnalyticsEngine.calculatePerformanceMetrics(allPhases);
     await ExportManager.exportToPDF(allPhases, metrics, 'dashboard-content');
   };
 
   const handleExportCSV = () => {
-    const allPhases = [...historicalPhases, ...phases];
+    const allPhases = [...historicalPhases, ...phases, ...archivedPhases];
     ExportManager.exportToCSV(allPhases);
   };
 
   // Calculate analytics data
-  const allPhases = [...historicalPhases, ...phases];
+  const allPhases = [...historicalPhases, ...phases, ...archivedPhases];
   const performanceMetrics = AnalyticsEngine.calculatePerformanceMetrics(allPhases);
   const monthlyPerformance = AnalyticsEngine.getMonthlyPerformance(allPhases);
   const equityCurve = AnalyticsEngine.getEquityCurve(allPhases);
@@ -321,11 +387,21 @@ function AppContent() {
                     phase={phase} 
                     updatePhase={updatePhase}
                     onDeletePhase={handleDeletePhase}
+                    onArchivePhase={handleArchivePhase}
                     riskWarningThreshold={settings.riskWarningThreshold}
                     expandedPhases={expandedPhases}
                     onToggleExpanded={handleTogglePhaseExpanded}
                   />
                 ))}
+
+                {/* Archived Phases Section */}
+                {archivedPhases.length > 0 && (
+                  <ArchivedPhases 
+                    phases={archivedPhases}
+                    onUnarchive={handleUnarchivePhase}
+                    onDelete={handleDeleteArchivedPhase}
+                  />
+                )}
                 
                 {phases.length === 0 && (
                   <div className="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400">

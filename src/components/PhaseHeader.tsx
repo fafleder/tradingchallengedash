@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, Trash2, Target, Edit2, Check, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Trash2, Target, Edit2, Check, X, Archive, Settings } from 'lucide-react';
 import { Phase } from '../types/Phase';
 import { formatCurrency } from '../utils/formatters';
 import { useTheme } from '../contexts/ThemeContext';
@@ -9,6 +9,7 @@ interface PhaseHeaderProps {
   expanded: boolean;
   onToggle: () => void;
   onDelete: () => void;
+  onArchive?: () => void;
   onUpdateGoal?: (goalTarget?: number) => void;
   totalEndingBalance: number;
 }
@@ -18,12 +19,14 @@ const PhaseHeader: React.FC<PhaseHeaderProps> = ({
   expanded,
   onToggle,
   onDelete,
+  onArchive,
   onUpdateGoal,
   totalEndingBalance
 }) => {
   const { darkMode } = useTheme();
   const [editingGoal, setEditingGoal] = useState(false);
   const [goalValue, setGoalValue] = useState(phase.goalTarget?.toString() || '');
+  const [showActions, setShowActions] = useState(false);
 
   // Get color based on phase number for the accent
   const getAccentColor = () => {
@@ -59,6 +62,15 @@ const PhaseHeader: React.FC<PhaseHeaderProps> = ({
     );
     if (confirmDelete) {
       onDelete();
+    }
+  };
+
+  const handleArchive = () => {
+    const confirmArchive = window.confirm(
+      `Are you sure you want to archive Phase ${phase.phaseNumber}? You can restore it later from the archived phases section.`
+    );
+    if (confirmArchive && onArchive) {
+      onArchive();
     }
   };
 
@@ -99,18 +111,60 @@ const PhaseHeader: React.FC<PhaseHeaderProps> = ({
             {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
           </button>
 
-          <button 
-            onClick={handleDelete}
-            className={`inline-flex items-center px-2 py-1 text-sm rounded-md transition-colors ${
-              darkMode
-                ? 'text-red-400 hover:text-red-300 hover:bg-red-900/20'
-                : 'text-red-600 hover:text-red-800 hover:bg-red-50'
-            }`}
-            aria-label={`Delete Phase ${phase.phaseNumber}`}
-          >
-            <Trash2 size={14} className="mr-1" />
-            Delete
-          </button>
+          {/* Actions Dropdown */}
+          <div className="relative">
+            <button 
+              onClick={() => setShowActions(!showActions)}
+              className={`inline-flex items-center px-2 py-1 text-sm rounded-md transition-colors ${
+                darkMode
+                  ? 'text-gray-400 hover:text-gray-300 hover:bg-gray-700'
+                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+              }`}
+              aria-label="Phase actions"
+            >
+              <Settings size={14} className="mr-1" />
+              Actions
+            </button>
+
+            {showActions && (
+              <div className={`absolute left-0 top-full mt-1 w-40 rounded-md shadow-lg border z-10 ${
+                darkMode
+                  ? 'bg-gray-800 border-gray-700'
+                  : 'bg-white border-gray-200'
+              }`}>
+                {onArchive && (
+                  <button
+                    onClick={() => {
+                      handleArchive();
+                      setShowActions(false);
+                    }}
+                    className={`w-full flex items-center px-3 py-2 text-sm transition-colors ${
+                      darkMode
+                        ? 'text-blue-400 hover:text-blue-300 hover:bg-gray-700'
+                        : 'text-blue-600 hover:text-blue-800 hover:bg-blue-50'
+                    }`}
+                  >
+                    <Archive size={14} className="mr-2" />
+                    Archive
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    handleDelete();
+                    setShowActions(false);
+                  }}
+                  className={`w-full flex items-center px-3 py-2 text-sm transition-colors ${
+                    darkMode
+                      ? 'text-red-400 hover:text-red-300 hover:bg-gray-700'
+                      : 'text-red-600 hover:text-red-800 hover:bg-red-50'
+                  }`}
+                >
+                  <Trash2 size={14} className="mr-2" />
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
         </div>
         
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
@@ -253,6 +307,14 @@ const PhaseHeader: React.FC<PhaseHeaderProps> = ({
           </div>
         )}
       </div>
+
+      {/* Click outside to close actions dropdown */}
+      {showActions && (
+        <div 
+          className="fixed inset-0 z-0" 
+          onClick={() => setShowActions(false)}
+        />
+      )}
     </div>
   );
 };
