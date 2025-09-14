@@ -17,6 +17,7 @@ import GoalTracker from './components/Goals/GoalTracker';
 import NotificationSystem from './components/Notifications/NotificationSystem';
 import MobileOptimizations from './components/Mobile/MobileOptimizations';
 import CalendarHeatmap from './components/Calendar/CalendarHeatmap';
+import FranchisePlan from './components/FranchisePlan/FranchisePlan';
 import { StorageManager } from './utils/storage';
 import { AnalyticsEngine } from './utils/analytics';
 import { ExportManager } from './utils/exportUtils';
@@ -27,7 +28,7 @@ function AppContent() {
   const [phases, setPhases] = useState<Phase[]>([]);
   const [historicalPhases, setHistoricalPhases] = useState<Phase[]>([]);
   const [archivedPhases, setArchivedPhases] = useState<Phase[]>([]);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'phases' | 'analytics' | 'journal' | 'goals' | 'calendar'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'phases' | 'analytics' | 'journal' | 'goals' | 'calendar' | 'franchise'>('dashboard');
   const [expandedPhases, setExpandedPhases] = useState<Set<number>>(new Set());
   const [globalGoals, setGlobalGoals] = useState<any[]>([]);
   const [settings, setSettings] = useState<AppSettings>({
@@ -309,6 +310,7 @@ function AppContent() {
     { id: 'journal' as const, label: 'Trade Journal', count: performanceMetrics.totalTrades },
     { id: 'calendar' as const, label: 'Trading Calendar', count: performanceMetrics.totalTrades },
     { id: 'goals' as const, label: 'Goal Tracker', count: globalGoals.length },
+    { id: 'franchise' as const, label: 'Franchise Plan', count: 0 },
   ];
 
   return (
@@ -435,6 +437,11 @@ function AppContent() {
                 savedGoals={globalGoals}
                 onGoalsChange={setGlobalGoals}
               />
+            )}
+
+            {/* Franchise Plan Tab */}
+            {activeTab === 'franchise' && (
+              <FranchisePlan phases={allPhases} />
             )}
           </div>
         </main>
