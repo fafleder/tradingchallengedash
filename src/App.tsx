@@ -18,6 +18,7 @@ import NotificationSystem from './components/Notifications/NotificationSystem';
 import MobileOptimizations from './components/Mobile/MobileOptimizations';
 import CalendarHeatmap from './components/Calendar/CalendarHeatmap';
 import FranchisePlan from './components/FranchisePlan/FranchisePlan';
+import TradingDashboard from './components/Dashboard/TradingDashboard';
 import { StorageManager } from './utils/storage';
 import { AnalyticsEngine } from './utils/analytics';
 import { ExportManager } from './utils/exportUtils';
@@ -357,22 +358,7 @@ function AppContent() {
           <div className="w-full px-6 py-6" id="dashboard-content">
             {/* Dashboard Tab */}
             {activeTab === 'dashboard' && (
-              <div className="space-y-6">
-                {performanceMetrics.totalTrades > 0 && (
-                  <PerformanceDashboard metrics={performanceMetrics} phases={allPhases} />
-                )}
-                
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                  <EquityCurveChart data={equityCurve} />
-                  <MonthlyPerformanceChart data={monthlyPerformance} />
-                </div>
-                
-                <RiskDistributionChart data={riskDistribution} />
-                
-                {historicalPhases.length > 0 && (
-                  <HistoricalPhases phases={historicalPhases} />
-                )}
-              </div>
+              <TradingDashboard phases={allPhases} />
             )}
 
             {/* Active Phases Tab */}
