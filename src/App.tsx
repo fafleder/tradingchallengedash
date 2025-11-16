@@ -32,6 +32,9 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'phases' | 'analytics' | 'journal' | 'goals' | 'calendar' | 'franchise'>('dashboard');
   const [expandedPhases, setExpandedPhases] = useState<Set<number>>(new Set());
   const [globalGoals, setGlobalGoals] = useState<any[]>([]);
+  const [offlineCapitalStack, setOfflineCapitalStack] = useState<number>(0);
+  const [monthlyBlowUps, setMonthlyBlowUps] = useState<number>(0);
+  const [totalFlipsCompleted, setTotalFlipsCompleted] = useState<number>(0);
   const [settings, setSettings] = useState<AppSettings>({
     darkMode: false,
     riskWarningThreshold: 3,
@@ -39,6 +42,11 @@ function AppContent() {
     defaultStrategy: '',
     defaultCurrencyPair: '',
     notifications: true,
+    maxSLAmount: 2, // Fixed $2 SL
+    maxDailyTrades: 3, // Max 3 trades per day
+    maxDailyLosses: 3, // Max 3 losses per day
+    defaultCycleType: 'micro',
+    autoWithdrawalRules: true,
   });
 
   // Initialize or load saved state
@@ -50,6 +58,9 @@ function AppContent() {
       setHistoricalPhases(savedState.historicalPhases || []);
       setArchivedPhases(savedState.archivedPhases || []);
       setGlobalGoals(savedState.globalGoals || []);
+      setOfflineCapitalStack(savedState.offlineCapitalStack || 0);
+      setMonthlyBlowUps(savedState.monthlyBlowUps || 0);
+      setTotalFlipsCompleted(savedState.totalFlipsCompleted || 0);
       if (savedState.settings) {
         setSettings(savedState.settings);
       }
@@ -74,9 +85,13 @@ function AppContent() {
         settings,
         expandedPhases: Array.from(expandedPhases),
         globalGoals,
+        offlineCapitalStack,
+        monthlyBlowUps,
+        totalFlipsCompleted,
+        propChallengeReadiness: offlineCapitalStack >= 150,
       });
     }
-  }, [currentPhase, phases, historicalPhases, archivedPhases, settings, expandedPhases, globalGoals]);
+  }, [currentPhase, phases, historicalPhases, archivedPhases, settings, expandedPhases, globalGoals, offlineCapitalStack, monthlyBlowUps, totalFlipsCompleted]);
 
   // Auto-backup functionality
   useEffect(() => {
@@ -90,12 +105,16 @@ function AppContent() {
           settings,
           expandedPhases: Array.from(expandedPhases),
           globalGoals,
+          offlineCapitalStack,
+          monthlyBlowUps,
+          totalFlipsCompleted,
+          propChallengeReadiness: offlineCapitalStack >= 150,
         });
       }, 300000); // Auto-save every 5 minutes
 
       return () => clearInterval(interval);
     }
-  }, [settings.autoBackup, currentPhase, phases, historicalPhases, archivedPhases, settings, expandedPhases, globalGoals]);
+  }, [settings.autoBackup, currentPhase, phases, historicalPhases, archivedPhases, settings, expandedPhases, globalGoals, offlineCapitalStack, monthlyBlowUps, totalFlipsCompleted]);
 
   // Persist expanded phases state across tab changes
   useEffect(() => {
@@ -116,20 +135,37 @@ function AppContent() {
 
   const handleStartNewPhase = (initialCapital: number, levelsPerPhase: number, goalTarget?: number) => {
     const newPhaseNumber = currentPhase + 1;
+    
+    // Determine cycle type based on capital
+    let cycleType: 'micro' | 'small' | 'prop-challenge' | 'funded' = 'micro';
+    if (initialCapital >= 1000) cycleType = 'funded';
+    else if (initialCapital >= 200) cycleType = 'prop-challenge';
+    else if (initialCapital >= 100) cycleType = 'small';
+    
+    // Calculate flip target multiplier
+    const flipTarget = goalTarget ? goalTarget / initialCapital : 2;
+    
     const newPhase: Phase = {
       phaseNumber: newPhaseNumber,
       initialCapital,
       levelsPerPhase,
       winStreak: 0,
       lossStreak: 0,
-      goalTarget,
+      goalTarget: goalTarget || initialCapital * 2,
       startDate: new Date().toISOString().split('T')[0],
+      cycleType,
+      flipTarget,
+      withdrawalStage: 'active',
+      blowUpCount: 0,
+      dailyLossCount: 0,
+      dailyTradeCount: 0,
       levels: Array(levelsPerPhase).fill(null).map((_, i) => ({
         levelNumber: i + 1,
         date: '',
         balance: i === 0 ? initialCapital : 0,
         riskPercent: 0,
         lotSize: 0.01,
+        slAmount: settings.maxSLAmount,
         pipsToRisk: 0,
         rewardMultiple: 0,
         profitTarget: 0,
@@ -137,6 +173,9 @@ function AppContent() {
         completed: false,
         strategy: settings.defaultStrategy,
         currencyPair: settings.defaultCurrencyPair,
+        tradeNumber: 0,
+        emotionalState: 'disciplined',
+        ruleViolations: [],
       })),
     };
 
@@ -155,6 +194,10 @@ function AppContent() {
       settings,
       expandedPhases: Array.from(expandedPhases),
       globalGoals,
+      offlineCapitalStack,
+      monthlyBlowUps,
+      totalFlipsCompleted,
+      propChallengeReadiness: offlineCapitalStack >= 150,
     });
   };
 
@@ -165,6 +208,9 @@ function AppContent() {
       setHistoricalPhases(data.historicalPhases || []);
       setArchivedPhases(data.archivedPhases || []);
       setGlobalGoals(data.globalGoals || []);
+      setOfflineCapitalStack(data.offlineCapitalStack || 0);
+      setMonthlyBlowUps(data.monthlyBlowUps || 0);
+      setTotalFlipsCompleted(data.totalFlipsCompleted || 0);
       if (data.settings) {
         setSettings(data.settings);
       }
@@ -178,6 +224,37 @@ function AppContent() {
     setPhases(phases.map(phase => 
       phase.phaseNumber === updatedPhase.phaseNumber ? updatedPhase : phase
     ));
+  };
+
+  const handleWithdraw = (phaseNumber: number, amount: number) => {
+    // Add to offline stack
+    setOfflineCapitalStack(prev => prev + amount);
+    
+    // Update phase withdrawal stage
+    const updatedPhases = phases.map(phase => {
+      if (phase.phaseNumber === phaseNumber) {
+        const multiplier = (phase.initialCapital + phase.levels.filter(l => l.completed).reduce((sum, l) => sum + l.pl, 0)) / phase.initialCapital;
+        
+        let newStage: Phase['withdrawalStage'] = 'active';
+        if (multiplier >= 5) newStage = 'reset';
+        else if (multiplier >= 4) newStage = 'reset';
+        else if (multiplier >= 3) newStage = 'withdraw-half';
+        else if (multiplier >= 2) newStage = 'withdraw-deposit';
+        
+        return {
+          ...phase,
+          withdrawalStage: newStage,
+        };
+      }
+      return phase;
+    });
+    
+    setPhases(updatedPhases);
+    
+    // If full withdrawal, increment flip counter
+    if (amount >= phases.find(p => p.phaseNumber === phaseNumber)?.initialCapital! * 2) {
+      setTotalFlipsCompleted(prev => prev + 1);
+    }
   };
 
   const handleDeletePhase = (phaseNumber: number) => {
@@ -253,7 +330,7 @@ function AppContent() {
 
   const handleDeleteArchivedPhase = (phaseNumber: number) => {
     const confirmDelete = window.confirm(
-      `Are you sure you want to permanently delete archived Phase ${phaseNumber}? This action cannot be undone.`
+      `Are you sure you want to permanently delete archived Cycle ${phaseNumber}? This action cannot be undone.`
     );
     if (confirmDelete) {
       setArchivedPhases(archivedPhases.filter(phase => phase.phaseNumber !== phaseNumber));
@@ -306,12 +383,12 @@ function AppContent() {
 
   const tabs = [
     { id: 'dashboard' as const, label: 'Dashboard', count: allPhases.length },
-    { id: 'phases' as const, label: 'Active Phases', count: phases.length },
+    { id: 'phases' as const, label: 'Active Cycles', count: phases.length },
     { id: 'analytics' as const, label: 'Advanced Analytics', count: performanceMetrics.totalTrades },
     { id: 'journal' as const, label: 'Trade Journal', count: performanceMetrics.totalTrades },
     { id: 'calendar' as const, label: 'Trading Calendar', count: performanceMetrics.totalTrades },
-    { id: 'goals' as const, label: 'Goal Tracker', count: globalGoals.length },
-    { id: 'franchise' as const, label: 'Franchise Plan', count: 0 },
+    { id: 'goals' as const, label: 'Flip Targets', count: globalGoals.length },
+    { id: 'franchise' as const, label: 'Business Plan', count: 0 },
   ];
 
   return (
@@ -358,15 +435,16 @@ function AppContent() {
           <div className="w-full px-6 py-6" id="dashboard-content">
             {/* Dashboard Tab */}
             {activeTab === 'dashboard' && (
-              <TradingDashboard phases={allPhases} />
+              <TradingDashboard phases={allPhases} offlineStack={offlineCapitalStack} monthlyBlowUps={monthlyBlowUps} totalFlips={totalFlipsCompleted} />
             )}
 
-            {/* Active Phases Tab */}
+            {/* Active Cycles Tab */}
             {activeTab === 'phases' && (
               <div className="space-y-6">
                 <InputSection 
                   onStartNewPhase={handleStartNewPhase} 
                   settings={settings}
+                  offlineStack={offlineCapitalStack}
                 />
 
                 {phases.map(phase => (
@@ -379,10 +457,11 @@ function AppContent() {
                     riskWarningThreshold={settings.riskWarningThreshold}
                     expandedPhases={expandedPhases}
                     onToggleExpanded={handleTogglePhaseExpanded}
+                    onWithdraw={(amount) => handleWithdraw(phase.phaseNumber, amount)}
                   />
                 ))}
 
-                {/* Archived Phases Section */}
+                {/* Archived Cycles Section */}
                 {archivedPhases.length > 0 && (
                   <ArchivedPhases 
                     phases={archivedPhases}
@@ -394,8 +473,8 @@ function AppContent() {
                 {phases.length === 0 && (
                   <div className="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400">
                     <BarChart3 size={48} className="mb-4 opacity-50" />
-                    <p className="text-xl font-medium">No active phases</p>
-                    <p className="text-sm">Enter your initial capital and levels to start tracking your progress</p>
+                    <p className="text-xl font-medium">No active flip cycles</p>
+                    <p className="text-sm">Start with $20-$50 and begin your first micro flip cycle</p>
                   </div>
                 )}
               </div>
@@ -416,7 +495,7 @@ function AppContent() {
               <CalendarHeatmap phases={allPhases} />
             )}
 
-            {/* Goals Tab */}
+            {/* Flip Targets Tab */}
             {activeTab === 'goals' && (
               <GoalTracker 
                 phases={allPhases} 
@@ -425,7 +504,7 @@ function AppContent() {
               />
             )}
 
-            {/* Franchise Plan Tab */}
+            {/* Business Plan Tab */}
             {activeTab === 'franchise' && (
               <FranchisePlan phases={allPhases} />
             )}
@@ -434,7 +513,7 @@ function AppContent() {
         
         <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-4 transition-colors">
           <div className="w-full px-6 text-center text-sm text-gray-500 dark:text-gray-400">
-            &copy; {new Date().getFullYear()} Trading Challenge Dashboard - Professional Edition
+            &copy; {new Date().getFullYear()} Micro Capital Trading Business Dashboard - Real Version
           </div>
         </footer>
       </div>

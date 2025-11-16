@@ -15,6 +15,7 @@ interface PhaseContainerProps {
   riskWarningThreshold: number;
   expandedPhases: Set<number>;
   onToggleExpanded: (phaseNumber: number) => void;
+  onWithdraw?: (amount: number) => void;
 }
 
 const PhaseContainer: React.FC<PhaseContainerProps> = ({ 
@@ -24,7 +25,8 @@ const PhaseContainer: React.FC<PhaseContainerProps> = ({
   onArchivePhase,
   riskWarningThreshold,
   expandedPhases,
-  onToggleExpanded
+  onToggleExpanded,
+  onWithdraw
 }) => {
   const { darkMode } = useTheme();
   const [showRiskWarnings, setShowRiskWarnings] = useState(false);
@@ -64,6 +66,13 @@ const PhaseContainer: React.FC<PhaseContainerProps> = ({
       updatedLevels[i].riskedAmount = calculateRiskedAmount(currentBalance, updatedLevels[i].riskPercent);
       updatedLevels[i].pipsToRisk = calculatePips(updatedLevels[i].riskedAmount, updatedLevels[i].lotSize);
       updatedLevels[i].profitTarget = calculateProfitTarget(updatedLevels[i].riskedAmount, updatedLevels[i].rewardMultiple);
+      
+      // Enforce $2 SL rule
+      if (updatedLevels[i].riskedAmount > 2) {
+        updatedLevels[i].riskPercent = (2 / currentBalance) * 100;
+        updatedLevels[i].riskedAmount = 2;
+        updatedLevels[i].slAmount = 2;
+      }
     }
     
     // Update phase with new level data
@@ -138,11 +147,29 @@ const PhaseContainer: React.FC<PhaseContainerProps> = ({
     const pipsToRisk = calculatePips(riskedAmount, lotSize);
     const profitTarget = calculateProfitTarget(riskedAmount, rewardMultiple);
     
+    // Enforce micro capital rules
+    let finalRiskedAmount = riskedAmount;
+    let finalRiskPercent = riskPercent;
+    
+    // Hard $2 SL limit
+    if (riskedAmount > 2) {
+      finalRiskedAmount = 2;
+      finalRiskPercent = (2 / currentBalance) * 100;
+    }
+    
+    // Add rule violations tracking
+    const ruleViolations: string[] = [];
+    if (riskedAmount > 2) ruleViolations.push('Exceeded $2 SL limit');
+    if (updates.tradeNumber && updates.tradeNumber > 3) ruleViolations.push('Exceeded 3 trades/day limit');
+    
     updatedLevels[levelIndex] = {
       ...updatedLevels[levelIndex],
-      riskedAmount,
+      riskedAmount: finalRiskedAmount,
+      riskPercent: finalRiskPercent,
+      slAmount: Math.min(finalRiskedAmount, 2),
       pipsToRisk,
       profitTarget
+      ruleViolations,
     };
     
     updatePhase({
@@ -154,11 +181,11 @@ const PhaseContainer: React.FC<PhaseContainerProps> = ({
   // Delete level
   const handleDeleteLevel = (levelIndex: number) => {
     if (phase.levels.length <= 1) {
-      alert('Cannot delete the last level in a phase.');
+      alert('Cannot delete the last trade in a cycle.');
       return;
     }
     
-    const confirmDelete = window.confirm('Are you sure you want to delete this level?');
+    const confirmDelete = window.confirm('Are you sure you want to delete this trade?');
     if (!confirmDelete) return;
     
     const updatedLevels = phase.levels.filter((_, index) => index !== levelIndex);
@@ -185,10 +212,12 @@ const PhaseContainer: React.FC<PhaseContainerProps> = ({
       completed: newCompletedState
     };
     
-    // Check if phase is completed
-    const isPhaseCompleted = updatedLevels.every(level => level.completed);
-    if (isPhaseCompleted) {
-      alert(`Phase ${phase.phaseNumber} completed! Start a new phase with a new initial balance.`);
+    // Check flip target achievement
+    const currentBalance = getTotalEndingBalance();
+    const multiplier = currentBalance / phase.initialCapital;
+    
+    if (multiplier >= (phase.flipTarget || 2)) {
+      alert(`🎉 Flip target achieved! ${multiplier.toFixed(2)}x multiplier reached. Time to withdraw!`);
     }
     
     updatePhase({
@@ -239,6 +268,7 @@ const PhaseContainer: React.FC<PhaseContainerProps> = ({
         onArchive={onArchivePhase ? handleArchivePhase : undefined}
         onUpdateGoal={handleUpdatePhaseGoal}
         totalEndingBalance={getTotalEndingBalance()}
+        onWithdraw={onWithdraw}
       />
       
       {expanded && (
