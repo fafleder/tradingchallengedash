@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, Trash2, Target, Edit2, Check, X, Archive, Settings, Zap, DollarSign, AlertTriangle } from 'lucide-react';
+import { ChevronDown, ChevronUp, Trash2, Target, CreditCard as Edit2, Check, X, Archive, Settings, Zap, DollarSign, AlertTriangle } from 'lucide-react';
 import { Phase } from '../types/Phase';
 import { formatCurrency } from '../utils/formatters';
 import { useTheme } from '../contexts/ThemeContext';
